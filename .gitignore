@@ -1,0 +1,59 @@
+# Laravel specific files
+*.log
+.DS_Store
+.env
+.env.backup
+.env.production
+.phpactor.json
+.phpunit.result.cache
+/.fleet
+/.idea
+/.nova
+/.phpunit.cache
+/.vscode
+/.zed
+/auth.json
+/node_modules
+/storage/*.key
+/storage/pail
+/vendor
+/public/images/produtos
+Homestead.json
+Homestead.yaml
+Thumbs.db
+saop_itau_cr_totem.pem
+saop_itau_cr_totem.pub
+vulcabras-olympikus-327bbc5d700a.json
+/public/images
+
+# General patterns
+# Node artifact files
+dist/
+
+# Compiled Java class files
+*.class
+
+# Compiled Python bytecode
+*.py[cod]
+
+# Package files
+*.jar
+
+# Maven
+target/
+
+# Unit test reports
+TEST*.xml
+
+# Applications
+*.app
+*.exe
+*.war
+
+# Large media files
+*.mp4
+*.tiff
+*.avi
+*.flv
+*.mov
+*.wmv
