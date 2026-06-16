@@ -29,7 +29,7 @@
             </h2>
         </div>
         <div class="flex items-center space-x-2">
-            <a href="{{ route('admin.sync-segmentacao-cliente') }}"
+            <a href="{{ route('admin.sync-segmentacao-cliente-show') }}"
                 class="flex items-center bg-blue-500 hover:bg-emerald-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-150 ease-in-out">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"
                     xmlns="http://www.w3.org/2000/svg">
@@ -103,7 +103,10 @@
                                 Nome
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Descrição
+                                Segmentação Vinculada
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Linha
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Status
@@ -148,10 +151,17 @@
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    @if ($segmentacaoCliente->descricao)
-                                        {{ \Illuminate\Support\Str::limit($segmentacaoCliente->descricao ?? '', 20) }}
+                                    @if ($segmentacaoCliente->produtos_segmentos)
+                                        {{ \Illuminate\Support\Str::limit(optional($segmentacaoCliente->segmentoProduto)->segmento ?? $segmentacaoCliente->produtos_segmentos, 30) }}
                                     @else
-                                        Sem descrição
+                                        -
+                                    @endif
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    @if ($segmentacaoCliente->linha)
+                                        {{ \Illuminate\Support\Str::limit($segmentacaoCliente->linha, 30) }}
+                                    @else
+                                        -
                                     @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
@@ -193,7 +203,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="px-6 py-4 text-center text-gray-500">
+                                <td colspan="6" class="px-6 py-4 text-center text-gray-500">
                                     Nenhuma segmentação encontrada.
                                 </td>
                             </tr>
@@ -204,81 +214,81 @@
 
         </div>
     </div>
+
+    @push('scripts')
+        <script>
+            (function() {
+                const searchInput = document.getElementById('search');
+                const statusSelect = document.getElementById('status');
+                const usuariosSelect = document.getElementById('usuarios');
+                const clearBtn = document.getElementById('clearFilters');
+                const tbody = document.getElementById('segmentacoesTableBody');
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+                const paginationContainer = document.getElementById('paginationContainer');
+
+                const applyFilters = () => {
+                    const search = (searchInput.value || '').toLowerCase().trim();
+                    const status = (statusSelect.value || '').trim();
+                    const usuarios = (usuariosSelect.value || '').trim();
+
+                    let visibleCount = 0;
+
+                    rows.forEach(row => {
+                        const name = (row.getAttribute('data-name') || '').toLowerCase();
+                        const slug = (row.getAttribute('data-slug') || '').toLowerCase();
+                        const descricao = (row.getAttribute('data-descricao') || '').toLowerCase();
+                        const rowStatus = (row.getAttribute('data-status') || '').trim();
+                        const usersCount = parseInt(row.getAttribute('data-users-count') || '0', 10);
+
+                        let matches = true;
+
+                        // Busca por nome/slug/descrição
+                        if (search) {
+                            const haystack = name + ' ' + slug + ' ' + descricao;
+                            if (!haystack.includes(search)) {
+                                matches = false;
+                            }
+                        }
+
+                        // Filtro de status
+                        if (matches && status) {
+                            if (rowStatus !== status) {
+                                matches = false;
+                            }
+                        }
+
+                        // Filtro por usuários vinculados
+                        if (matches && usuarios) {
+                            if (usuarios === 'com' && usersCount === 0) {
+                                matches = false;
+                            } else if (usuarios === 'sem' && usersCount > 0) {
+                                matches = false;
+                            }
+                        }
+
+                        row.style.display = matches ? '' : 'none';
+                        if (matches) visibleCount++;
+                    });
+
+                    // Oculta paginação quando filtros ativos (qualquer valor diferente de vazio)
+                    const anyFilterActive = !!(search || status || usuarios);
+                    if (paginationContainer) {
+                        paginationContainer.style.display = anyFilterActive ? 'none' : '';
+                    }
+                };
+
+                const clearFilters = () => {
+                    searchInput.value = '';
+                    statusSelect.value = '';
+                    usuariosSelect.value = '';
+                    applyFilters();
+                };
+
+                searchInput.addEventListener('input', applyFilters);
+                statusSelect.addEventListener('change', applyFilters);
+                usuariosSelect.addEventListener('change', applyFilters);
+                clearBtn.addEventListener('click', clearFilters);
+            })();
+        </script>
+    @endpush
 @endsection
-
-@push('scripts')
-    <script>
-        (function() {
-            const searchInput = document.getElementById('search');
-            const statusSelect = document.getElementById('status');
-            const usuariosSelect = document.getElementById('usuarios');
-            const clearBtn = document.getElementById('clearFilters');
-            const tbody = document.getElementById('segmentacoesTableBody');
-            const rows = Array.from(tbody.querySelectorAll('tr'));
-            const paginationContainer = document.getElementById('paginationContainer');
-
-            const applyFilters = () => {
-                const search = (searchInput.value || '').toLowerCase().trim();
-                const status = (statusSelect.value || '').trim();
-                const usuarios = (usuariosSelect.value || '').trim();
-
-                let visibleCount = 0;
-
-                rows.forEach(row => {
-                    const name = (row.getAttribute('data-name') || '').toLowerCase();
-                    const slug = (row.getAttribute('data-slug') || '').toLowerCase();
-                    const descricao = (row.getAttribute('data-descricao') || '').toLowerCase();
-                    const rowStatus = (row.getAttribute('data-status') || '').trim();
-                    const usersCount = parseInt(row.getAttribute('data-users-count') || '0', 10);
-
-                    let matches = true;
-
-                    // Busca por nome/slug/descrição
-                    if (search) {
-                        const haystack = name + ' ' + slug + ' ' + descricao;
-                        if (!haystack.includes(search)) {
-                            matches = false;
-                        }
-                    }
-
-                    // Filtro de status
-                    if (matches && status) {
-                        if (rowStatus !== status) {
-                            matches = false;
-                        }
-                    }
-
-                    // Filtro por usuários vinculados
-                    if (matches && usuarios) {
-                        if (usuarios === 'com' && usersCount === 0) {
-                            matches = false;
-                        } else if (usuarios === 'sem' && usersCount > 0) {
-                            matches = false;
-                        }
-                    }
-
-                    row.style.display = matches ? '' : 'none';
-                    if (matches) visibleCount++;
-                });
-
-                // Oculta paginação quando filtros ativos (qualquer valor diferente de vazio)
-                const anyFilterActive = !!(search || status || usuarios);
-                if (paginationContainer) {
-                    paginationContainer.style.display = anyFilterActive ? 'none' : '';
-                }
-            };
-
-            const clearFilters = () => {
-                searchInput.value = '';
-                statusSelect.value = '';
-                usuariosSelect.value = '';
-                applyFilters();
-            };
-
-            searchInput.addEventListener('input', applyFilters);
-            statusSelect.addEventListener('change', applyFilters);
-            usuariosSelect.addEventListener('change', applyFilters);
-            clearBtn.addEventListener('click', clearFilters);
-        })();
-    </script>
-@endpush

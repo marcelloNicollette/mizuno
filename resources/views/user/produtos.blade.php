@@ -2657,7 +2657,7 @@
             let selectedCategory = '';
             let selectedSubcategory = '';
 
-
+            syncSegmentacaoCategoriaSelecionada(selectedCategory);
 
             // Coleção dropdown
             const colecaoSelectButton = document.getElementById('colecaoSelectButton');
@@ -5278,6 +5278,7 @@
                 const categoryName = categoryOption.querySelector('.option-content').textContent;
 
                 selectedCategory = categoryOption.getAttribute('data-value');
+                syncSegmentacaoCategoriaSelecionada(selectedCategory);
                 selectedSubcategory = subcategoryId;
 
                 if (subcategoryId) {
@@ -5326,6 +5327,7 @@
                             categorySelectedText.innerHTML =
                                 "<span class='text-[16px] text-black'>Categoria</span>";
                             selectedCategory = '';
+                            syncSegmentacaoCategoriaSelecionada(selectedCategory);
                             selectedSubcategory = '';
                             subcategoryOption.classList.remove('selected');
                             subcategoryOption.querySelector('.check-icon').style.display = 'none';
@@ -5379,6 +5381,7 @@
 
                                 // Define a categoria selecionada
                                 selectedCategory = categoryName;
+                                syncSegmentacaoCategoriaSelecionada(selectedCategory);
                                 selectedSubcategory = ''; // Limpa subcategoria
 
                                 // Atualiza o texto do botão
@@ -5581,6 +5584,7 @@
                         categorySelectedText.innerHTML =
                             "<span class='text-[16px] text-black'>Categoria</span>";
                         selectedCategory = '';
+                        syncSegmentacaoCategoriaSelecionada(selectedCategory);
                         selectedSubcategory = '';
 
                         // Fechar todas as categorias expandidas
@@ -5632,6 +5636,7 @@
                         });
 
                         selectedCategory = value;
+                        syncSegmentacaoCategoriaSelecionada(selectedCategory);
                         selectedSubcategory = '';
                         //closeCategoryDropdown();
                         aplicarFiltros();
@@ -5657,6 +5662,8 @@
                 priceMin: null,
                 priceMax: null
             };
+
+            syncSegmentacaoLinhasSelecionadas(selectedFilters.linha);
 
             filterButton.addEventListener('click', function(e) {
                 e.stopPropagation();
@@ -5787,6 +5794,7 @@
             function updateFilterCount() {
                 const totalSelected = selectedFilters.numeracao.length + selectedFilters.tamanho.length +
                     selectedFilters.classification.length + selectedFilters.genero.length +
+                    selectedFilters.linha.length +
                     (selectedFilters.priceMin ? 1 : 0) +
                     (selectedFilters.priceMax ? 1 : 0);
 
@@ -5803,6 +5811,8 @@
                     filterText.textContent = 'Filtrar';
                     filterCount.style.display = 'none';
                 }
+
+                syncSegmentacaoLinhasSelecionadas(selectedFilters.linha);
 
                 aplicarFiltros();
             }
@@ -6072,10 +6082,8 @@
             updateCategoryDropdownStructure();
 
             aplicarFiltros();
-        </script>
 
 
-        <script>
             // Abrir/fechar menu mobile
             const trigger = document.getElementById('mobileFilterTrigger');
             const overlay = document.getElementById('mobileFilterOverlay');
@@ -6603,6 +6611,7 @@
                     // Categoria
                     if (mobileSelectedCategory && mobileSelectedCategory !== 'Todas') {
                         selectedCategory = mobileSelectedCategory;
+                        syncSegmentacaoCategoriaSelecionada(selectedCategory);
                         selectedSubcategory = mobileSelectedSubcategory;
 
                         const categoryText = mobileSelectedSubcategory ?
@@ -6615,6 +6624,7 @@
             `;
                     } else {
                         selectedCategory = '';
+                        syncSegmentacaoCategoriaSelecionada(selectedCategory);
                         selectedSubcategory = '';
                         document.getElementById('categorySelectedText').innerHTML =
                             "<span class='text-[16px] text-black'>Categoria</span>";

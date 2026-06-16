@@ -1073,10 +1073,7 @@
             let selectedCategory = '';
             let selectedSubcategory = '';
 
-
-
-
-
+            syncSegmentacaoCategoriaSelecionada(selectedCategory);
 
             // Category dropdown
             const categorySelectButton = document.getElementById('categorySelectButton');
@@ -1397,6 +1394,7 @@
                 const categoryName = categoryOption.querySelector('.option-content').textContent;
 
                 selectedCategory = categoryOption.getAttribute('data-value');
+                syncSegmentacaoCategoriaSelecionada(selectedCategory);
                 selectedSubcategory = subcategoryId;
 
                 if (subcategoryId) {
@@ -1444,6 +1442,7 @@
                         if (option) {
                             categorySelectedText.innerHTML = "<span class='text-[16px] text-black'>Categoria</span>";
                             selectedCategory = '';
+                            syncSegmentacaoCategoriaSelecionada(selectedCategory);
                             selectedSubcategory = '';
                             subcategoryOption.classList.remove('selected');
                             subcategoryOption.querySelector('.check-icon').style.display = 'none';
@@ -1493,6 +1492,7 @@
 
                                 // Define a categoria selecionada
                                 selectedCategory = categoryName;
+                                syncSegmentacaoCategoriaSelecionada(selectedCategory);
                                 selectedSubcategory = ''; // Limpa subcategoria
 
                                 // Atualiza o texto do botão
@@ -1618,6 +1618,7 @@
                     if (option) {
                         categorySelectedText.innerHTML = "<span class='text-[16px] text-black'>Categoria</span>";
                         selectedCategory = '';
+                        syncSegmentacaoCategoriaSelecionada(selectedCategory);
                         selectedSubcategory = '';
 
                         // Fechar todas as categorias expandidas
@@ -1669,6 +1670,7 @@
                         });
 
                         selectedCategory = value;
+                        syncSegmentacaoCategoriaSelecionada(selectedCategory);
                         selectedSubcategory = '';
                         //closeCategoryDropdown();
                         aplicarFiltros();
@@ -1694,6 +1696,8 @@
                 priceMin: null,
                 priceMax: null
             };
+
+            syncSegmentacaoLinhasSelecionadas(selectedFilters.linha);
 
             filterButton.addEventListener('click', function(e) {
                 e.stopPropagation();
@@ -1821,7 +1825,7 @@
 
             function updateFilterCount() {
                 const totalSelected = selectedFilters.numeracao.length + selectedFilters.tamanho.length +
-                    selectedFilters.classification.length + selectedFilters.genero.length +
+                    selectedFilters.classification.length + selectedFilters.genero.length + selectedFilters.linha.length +
                     (selectedFilters.priceMin ? 1 : 0) +
                     (selectedFilters.priceMax ? 1 : 0);
 
@@ -1838,6 +1842,8 @@
                     filterText.textContent = 'Filtrar';
                     filterCount.style.display = 'none';
                 }
+
+                syncSegmentacaoLinhasSelecionadas(selectedFilters.linha);
 
                 aplicarFiltros();
             }

@@ -145,7 +145,7 @@
                                 <input type="radio" name="formato"
                                     class="form-radio radio-custom w-4 h-4 rounded-full border border-black bg-white checked:bg-white checked:border-black focus:ring-0 cursor-pointer relative"
                                     value="16_9">
-                                <span class="ml-2 text-sm">Apresentação 16:9</span>
+                                <span class="ml-2 text-sm opacity-50">Apresentação 16:9</span>
                             </label>
                             <label class="inline-flex items-center">
                                 <input type="radio" name="formato"
@@ -219,27 +219,26 @@
 
         </div>
 
-        <div class="flex justify-between items-center mb-4">
-            <div class="flex items-center gap-4">
-                <label class="flex items-center">
-                    <input type="checkbox" id="selecionarTodosSegmentos"
-                        class="w-[15px] h-[15px] rounded border-2 border-[#7A7A7A] bg-white checked:bg-white checked:border-[#7A7A7A] focus:ring-0 cursor-pointer relative mr-3">
-                    <span>Selecionar todos</span>
-                </label>
-                <span class="text-xs opacity-50">Selecionados: <span
-                        id="contadorSegmentosSelecionados">0</span></span>
-                <span class="text-xs opacity-50">Total: <span id="totalSegmentos">0</span></span>
-            </div>
-            <div class="flex items-center gap-2">
-                <div class="flex items-center border-b border-b-black px-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-black ml-1" viewBox="0 0 20 20"
-                        fill="currentColor">
-                        <path fill-rule="evenodd"
-                            d="M12.9 14.32a8 8 0 111.414-1.414l4.387 4.387a1 1 0 01-1.414 1.414l-4.387-4.387zM8 14a6 6 0 100-12 6 6 0 000 12z"
-                            clip-rule="evenodd" />
-                    </svg>
-                    <input id="buscarSegmento" type="text" placeholder="Buscar"
-                        class="input-estilizado bg-transparent border-0 focus:outline-none focus:ring-0 p-1" />
+        <div class="mb-4">
+            <div class="text-xs text-gray-500 mb-2">Linha</div>
+            <div id="linhasFiltroSegmentos" class="flex items-center gap-2 flex-wrap mb-3"></div>
+            <div class="flex justify-between items-center gap-4">
+                <div class="flex items-center gap-4">
+                    <span class="text-xs opacity-50">Selecionados: <span
+                            id="contadorSegmentosSelecionados">0</span></span>
+                    <span class="text-xs opacity-50">Total: <span id="totalSegmentos">0</span></span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="flex items-center border-b border-b-black px-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-black ml-1" viewBox="0 0 20 20"
+                            fill="currentColor">
+                            <path fill-rule="evenodd"
+                                d="M12.9 14.32a8 8 0 111.414-1.414l4.387 4.387a1 1 0 01-1.414 1.414l-4.387-4.387zM8 14a6 6 0 100-12 6 6 0 000 12z"
+                                clip-rule="evenodd" />
+                        </svg>
+                        <input id="buscarSegmento" type="text" placeholder="Buscar"
+                            class="input-estilizado bg-transparent border-0 focus:outline-none focus:ring-0 p-1" />
+                    </div>
                 </div>
             </div>
         </div>
@@ -404,6 +403,7 @@
 
         // Obter segmentacao_id do elemento clicado
         const segmentacaoId = element.getAttribute('data-segmentacao-id');
+        segmentacaoAtualId = segmentacaoId ? parseInt(segmentacaoId, 10) : null;
 
         // Armazenar collection ID atual
         collectionIdAtual = element.getAttribute('data-collection-id') || element.getAttribute('data-id');
@@ -432,9 +432,215 @@
     let produtosSelecionados = [];
     let produtosDisponiveis = [];
     let collectionIdAtual = null;
+    let segmentacaoAtualId = null;
     // Variáveis para seleção de segmentos
     let segmentosDisponiveis = @json($segmentosUsuario ?? []);
     let segmentosSelecionados = [];
+    let segmentosSelecionadosInicializados = false;
+    let linhasFiltroAtivasSegmentos = [];
+    let todosLinhaAtivoSegmentos = false;
+
+    function normalizeSegmentoContexto(value) {
+        return (value || '')
+            .toString()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toUpperCase()
+            .replace(/[^A-Z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '');
+    }
+
+    function parseLinhasSegmento(value) {
+        return (value || '')
+            .toString()
+            .split(/[,;|\/\n]+/)
+            .map(item => normalizeSegmentoContexto(item))
+            .filter(Boolean);
+    }
+
+    function getLinhasSelecionadasContexto() {
+        try {
+            const saved = JSON.parse(localStorage.getItem('selectedSegmentacaoLinhas') || '[]');
+            return Array.isArray(saved) ? saved.map(item => normalizeSegmentoContexto(item)).filter(Boolean) : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function getSegmentosBaseFiltrados() {
+        if (!segmentacaoAtualId) {
+            return [];
+        }
+
+        const linhasSelecionadas = getLinhasSelecionadasContexto();
+
+        return (segmentosDisponiveis || []).filter(segmento => {
+            if (String(segmento.produtos_segmentos || '') !== String(segmentacaoAtualId)) {
+                return false;
+            }
+
+            if (linhasSelecionadas.length === 0) {
+                return true;
+            }
+
+            const linhasSegmento = parseLinhasSegmento(segmento.linha);
+            if (linhasSegmento.length === 0) {
+                return false;
+            }
+
+            return linhasSelecionadas.some(linha => linhasSegmento.includes(linha));
+        });
+    }
+
+    function getLinhasFiltroSegmentos() {
+        return [...new Set(getSegmentosBaseFiltrados()
+            .flatMap(segmento => parseLinhasSegmento(segmento.linha))
+            .filter(Boolean))];
+    }
+
+    function getSegmentosDisponiveisFiltrados() {
+        const segmentosBase = getSegmentosBaseFiltrados();
+
+        if (linhasFiltroAtivasSegmentos.length === 0) {
+            return segmentosBase;
+        }
+
+        return segmentosBase.filter(segmento => {
+            const linhasSegmento = parseLinhasSegmento(segmento.linha);
+            return linhasFiltroAtivasSegmentos.some(linha => linhasSegmento.includes(linha));
+        });
+    }
+
+    function syncSegmentosSelecionadosComLista(lista) {
+        const idsPermitidos = new Set((lista || []).map(s => parseInt(s.id, 10)));
+        segmentosSelecionados = (segmentosSelecionados || []).filter(id => idsPermitidos.has(parseInt(id, 10)));
+    }
+
+    function removerSegmentosPorLinha(linha) {
+        const linhaNormalizada = normalizeSegmentoContexto(linha);
+        if (!linhaNormalizada) {
+            return;
+        }
+
+        const idsParaRemover = new Set(getSegmentosBaseFiltrados()
+            .filter(segmento => parseLinhasSegmento(segmento.linha).includes(linhaNormalizada))
+            .map(segmento => parseInt(segmento.id, 10)));
+
+        segmentosSelecionados = (segmentosSelecionados || []).filter(id => !idsParaRemover.has(parseInt(id, 10)));
+    }
+
+    function selecionarSegmentosVisiveis(checked) {
+        const container = document.getElementById('segmentosList');
+        if (!container) {
+            return;
+        }
+
+        const rows = container.querySelectorAll(':scope > div');
+        rows.forEach(row => {
+            if (row.style.display === 'none') {
+                return;
+            }
+
+            const checkbox = row.querySelector('.segmento-checkbox');
+            if (!checkbox) {
+                return;
+            }
+
+            const id = parseInt(checkbox.getAttribute('data-id'), 10);
+            checkbox.checked = !!checked;
+
+            if (checked) {
+                if (!segmentosSelecionados.includes(id)) {
+                    segmentosSelecionados.push(id);
+                }
+            } else {
+                segmentosSelecionados = segmentosSelecionados.filter(s => s !== id);
+            }
+        });
+
+        const contSel = document.getElementById('contadorSegmentosSelecionados');
+        if (contSel) {
+            contSel.textContent = segmentosSelecionados.length;
+        }
+    }
+
+    function renderizarFiltroLinhasSegmentos() {
+        const container = document.getElementById('linhasFiltroSegmentos');
+        if (!container) {
+            return;
+        }
+
+        const linhas = getLinhasFiltroSegmentos();
+        const linhasIniciais = getLinhasSelecionadasContexto().filter(linha => linhas.includes(linha));
+        if (linhasFiltroAtivasSegmentos.length === 0 && linhasIniciais.length > 0) {
+            linhasFiltroAtivasSegmentos = linhasIniciais;
+        } else {
+            linhasFiltroAtivasSegmentos = linhasFiltroAtivasSegmentos.filter(linha => linhas.includes(linha));
+        }
+
+        container.innerHTML = [
+            `
+                <label class="flex items-center">
+                    <input type="checkbox" id="selecionarTodasLinhasSegmentos"
+                        class="w-[15px] h-[15px] rounded border-2 border-[#7A7A7A] bg-white checked:bg-white checked:border-[#7A7A7A] focus:ring-0 cursor-pointer relative mr-2"
+                        ${todosLinhaAtivoSegmentos ? 'checked' : ''}>
+                    <span>Todos</span>
+                </label>
+            `,
+            ...linhas.map(linha => {
+                const isActive = linhasFiltroAtivasSegmentos.includes(linha);
+                const label = linha.replaceAll('_', ' ');
+
+                return `
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" class="linha-filtro-checkbox w-[15px] h-[15px] rounded border-2 border-[#7A7A7A] bg-white checked:bg-white checked:border-[#7A7A7A] focus:ring-0 cursor-pointer relative mr-2"
+                            data-linha="${linha}" ${isActive ? 'checked' : ''}>
+                        <span class="text-base">${label}</span>
+                    </label>
+                `;
+            }),
+        ].join('');
+
+        const selecionarTodas = document.getElementById('selecionarTodasLinhasSegmentos');
+        if (selecionarTodas) {
+            selecionarTodas.addEventListener('change', function() {
+                todosLinhaAtivoSegmentos = !!this.checked;
+                linhasFiltroAtivasSegmentos = [];
+                renderizarFiltroLinhasSegmentos();
+                if (this.checked) {
+                    renderizarSegmentos(getSegmentosDisponiveisFiltrados());
+                    selecionarSegmentosVisiveis(true);
+                } else {
+                    segmentosSelecionados = [];
+                    renderizarSegmentos(getSegmentosDisponiveisFiltrados());
+                }
+            });
+        }
+
+        container.querySelectorAll('.linha-filtro-checkbox').forEach(button => {
+            button.addEventListener('change', function() {
+                todosLinhaAtivoSegmentos = false;
+                const linha = this.getAttribute('data-linha') || '';
+                if (this.checked) {
+                    if (!linhasFiltroAtivasSegmentos.includes(linha)) {
+                        linhasFiltroAtivasSegmentos.push(linha);
+                    }
+                } else {
+                    linhasFiltroAtivasSegmentos = linhasFiltroAtivasSegmentos.filter(item => item !==
+                        linha);
+                }
+                renderizarFiltroLinhasSegmentos();
+                if (this.checked) {
+                    renderizarSegmentos(getSegmentosDisponiveisFiltrados());
+                    selecionarSegmentosVisiveis(true);
+                } else {
+                    removerSegmentosPorLinha(linha);
+                    syncSegmentosSelecionadosComLista(getSegmentosDisponiveisFiltrados());
+                    renderizarSegmentos(getSegmentosDisponiveisFiltrados());
+                }
+            });
+        });
+    }
 
     // Event listener para interceptar o botão sendHistory quando necessário
     document.addEventListener('DOMContentLoaded', function() {
@@ -746,11 +952,17 @@
 
     // ===== Seleção de Segmentos =====
     function abrirModalSelecaoSegmentos() {
+        if (!segmentosSelecionadosInicializados) {
+            segmentosSelecionados = getSelectedSegmentacoesLocal();
+            segmentosSelecionadosInicializados = true;
+        }
+
         // Fechar modal principal
         document.getElementById('gerarArquivoModal').classList.add('hidden');
         // Abrir modal de segmentos
         document.getElementById('selecaoSegmentosModal').classList.remove('hidden');
-        renderizarSegmentos(segmentosDisponiveis);
+        renderizarFiltroLinhasSegmentos();
+        renderizarSegmentos(getSegmentosDisponiveisFiltrados());
     }
 
     function fecharModalSelecaoSegmentos() {
@@ -765,8 +977,6 @@
         const contSel = document.getElementById('contadorSegmentosSelecionados');
         const container = document.getElementById('segmentosList');
 
-        // Carregar seleção do localStorage
-        segmentosSelecionados = getSelectedSegmentacoesLocal();
         contSel.textContent = segmentosSelecionados.length;
 
         if (!lista || lista.length === 0) {
@@ -794,29 +1004,9 @@
                 }
                 document.getElementById('contadorSegmentosSelecionados').textContent =
                     segmentosSelecionados.length;
-                atualizarSelecionarTodosSegmentos();
             });
         });
-
-        atualizarSelecionarTodosSegmentos();
     }
-
-    function atualizarSelecionarTodosSegmentos() {
-        const total = document.querySelectorAll('.segmento-checkbox').length;
-        const chk = document.getElementById('selecionarTodosSegmentos');
-        chk.checked = (segmentosSelecionados.length === total && total > 0);
-    }
-
-    document.getElementById('selecionarTodosSegmentos').addEventListener('change', function() {
-        const check = this.checked;
-        const boxes = document.querySelectorAll('.segmento-checkbox');
-        segmentosSelecionados = [];
-        boxes.forEach(b => {
-            b.checked = check;
-            if (check) segmentosSelecionados.push(parseInt(b.getAttribute('data-id')));
-        });
-        document.getElementById('contadorSegmentosSelecionados').textContent = segmentosSelecionados.length;
-    });
 
     document.getElementById('buscarSegmento').addEventListener('input', function() {
         const termo = this.value.toLowerCase();
@@ -862,6 +1052,9 @@
     function cancelarSelecaoSegmentos() {
         // Limpar seleção em memória
         segmentosSelecionados = [];
+        segmentosSelecionadosInicializados = false;
+        linhasFiltroAtivasSegmentos = [];
+        todosLinhaAtivoSegmentos = false;
 
         // Desmarcar todas as checkboxes visíveis
         document.querySelectorAll('.segmento-checkbox').forEach(cb => {
@@ -870,13 +1063,13 @@
 
         // Atualizar contadores e selecionar todos
         document.getElementById('contadorSegmentosSelecionados').textContent = 0;
-        const chkTodos = document.getElementById('selecionarTodosSegmentos');
-        if (chkTodos) chkTodos.checked = false;
-
         // Limpar persistência
         try {
             localStorage.removeItem('selectedSegmentacoesModal');
         } catch (e) {}
+
+        renderizarFiltroLinhasSegmentos();
+        renderizarSegmentos(getSegmentosDisponiveisFiltrados());
 
         // Atualizar CTA no modal principal
         const contadorSegSpan = document.getElementById('btnContadorSegmentos');
@@ -1011,6 +1204,9 @@
 
         // Zerar segmentos selecionados
         segmentosSelecionados = [];
+        segmentosSelecionadosInicializados = false;
+        linhasFiltroAtivasSegmentos = [];
+        todosLinhaAtivoSegmentos = false;
         try {
             localStorage.removeItem('selectedSegmentacoesModal');
         } catch (e) {}
@@ -1020,14 +1216,14 @@
             contadorSpanText.textContent = "Selecionar segmentos";
             contadorSegSpan.textContent = '';
         }
+
+        renderizarFiltroLinhasSegmentos();
+        renderizarSegmentos(getSegmentosDisponiveisFiltrados());
         // Desmarcar checkboxes do modal de segmentos, se presentes
         document.querySelectorAll('.segmento-checkbox').forEach(cb => {
             cb.checked = false;
         });
-        const chkTodosSegmentos = document.getElementById('selecionarTodosSegmentos');
-        if (chkTodosSegmentos) {
-            chkTodosSegmentos.checked = false;
-        }
+        linhasFiltroAtivasSegmentos = [];
         const contSelSeg = document.getElementById('contadorSegmentosSelecionados');
         if (contSelSeg) {
             contSelSeg.textContent = 0;

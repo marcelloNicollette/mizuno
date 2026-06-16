@@ -299,6 +299,10 @@
                             <div x-show="open" @click.away="open = false"
                                 class="absolute left-0 w-full mt-2 origin-top-right rounded-md shadow-lg z-10">
                                 <div class="px-2 py-2 bg-white rounded-md shadow">
+                                    <a href="{{ route('admin.sync-segmentacao-cliente-show') }}"
+                                        class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 {{ str_contains($currentRoute, 'admin/sync-segmentos-cliente') ? 'bg-indigo-50 text-indigo-600' : '' }}">
+                                        {{ __('Clientes Segmentados') }}
+                                    </a>
                                     <a href="{{ route('admin.sync-produtos') }}"
                                         class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 {{ str_contains($currentRoute, 'admin/sync-produtos') ? 'bg-indigo-50 text-indigo-600' : '' }}">
                                         {{ __('Produtos') }}

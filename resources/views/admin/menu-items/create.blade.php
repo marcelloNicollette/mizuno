@@ -1,6 +1,6 @@
 @extends('layouts.admin-layout')
 
-@section('page_title', 'Olympikus - Novo Item de Menu')
+@section('page_title', 'Mizuno - Novo Item de Menu')
 
 @section('content-wrapper')
     <div class="flex justify-between items-center mb-6">
@@ -37,21 +37,24 @@
                     </div>
 
                     <div>
-                        <label for="route" class="block text-sm font-medium text-gray-700">Rota (Ex: user.slug.colecoes)</label>
+                        <label for="route" class="block text-sm font-medium text-gray-700">Rota (Ex:
+                            user.slug.colecoes)</label>
                         <input type="text" name="route" id="route"
                             class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                             value="{{ old('route') }}">
                     </div>
 
                     <div>
-                        <label for="url" class="block text-sm font-medium text-gray-700">URL (Ex: /user/colecoes)</label>
+                        <label for="url" class="block text-sm font-medium text-gray-700">URL (Ex:
+                            /user/colecoes)</label>
                         <input type="text" name="url" id="url"
                             class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                             value="{{ old('url') }}">
                     </div>
 
                     <div>
-                        <label for="icon" class="block text-sm font-medium text-gray-700">Ícone (Caminho relativo, ex: /images/icones/colecoes.svg)</label>
+                        <label for="icon" class="block text-sm font-medium text-gray-700">Ícone (Caminho relativo, ex:
+                            /images/icones/colecoes.svg)</label>
                         <input type="text" name="icon" id="icon"
                             class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                             value="{{ old('icon') }}">
@@ -61,7 +64,9 @@
                         <label class="block text-sm font-medium text-gray-700">Status</label>
                         <div class="mt-2">
                             <label class="inline-flex items-center">
-                                <input type="checkbox" name="active" value="1" class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50" checked>
+                                <input type="checkbox" name="active" value="1"
+                                    class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                                    checked>
                                 <span class="ml-2">Ativo</span>
                             </label>
                         </div>
@@ -69,10 +74,11 @@
                 </div>
 
                 <div class="mt-6">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Permissões (Classificações Permitidas)</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Permissões (Classificações
+                        Permitidas)</label>
                     <p class="text-xs text-gray-500 mb-4">Se nenhuma for selecionada, o item será visível para todos.</p>
                     <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        @foreach($classifications as $classification)
+                        @foreach ($classifications as $classification)
                             <label class="inline-flex items-center">
                                 <input type="checkbox" name="allowed_classifications[]" value="{{ $classification }}"
                                     class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">

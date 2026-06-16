@@ -53,11 +53,20 @@ class GoogleSheetController extends Controller
         return view('admin.sync.sync-representantes');
     }
 
+    public function syncSegmentacaoClienteShow()
+    {
+        return view('admin.sync.sync-segmentos-cliente');
+    }
+
+    
+
     public function syncSegmentacaoCliente()
     {
         $spreadsheetId = '1HZ3QtWU0ZWFlMfmUIn-25lEdHIyxkMTyHd0CuciTpPQ';
-        $sheetName = 'OLYMPIKUS';
-        $range = "{$sheetName}!A:B";
+        $sheetName = 'MIZUNO';
+        $range = "{$sheetName}!A:C";
+        $unmatchedSegmentacoes = [];
+        $unmatchedSegmentacoesTotal = 0;
         $syncResults = [
             'created' => 0,
             'updated' => 0,
@@ -79,10 +88,13 @@ class GoogleSheetController extends Controller
                 $sheetLine = $rowIndex + 1;
                 $segmentoCliente = trim((string) ($row[0] ?? ''));
                 $produtosSegmentos = trim((string) ($row[1] ?? ''));
+                $linha = trim((string) ($row[2] ?? ''));
+                $produtosSegmentosId = $this->resolveSegmentacaoReference($produtosSegmentos);
 
                 $isHeaderRow = $sheetLine === 1
                     && $this->normalizeSheetHeader($segmentoCliente) === 'SEGMENTO_CLIENTE'
-                    && $this->normalizeSheetHeader($produtosSegmentos) === 'PRODUTOS_SEGMENTOS';
+                    && $this->normalizeSheetHeader($produtosSegmentos) === 'PRODUTOS_SEGMENTOS'
+                    && in_array($this->normalizeSheetHeader($linha), ['', 'LINHA'], true);
 
                 if ($isHeaderRow) {
                     continue;
@@ -94,10 +106,27 @@ class GoogleSheetController extends Controller
                     continue;
                 }
 
+                if ($produtosSegmentos !== '' && $produtosSegmentos !== '-' && $produtosSegmentosId === null) {
+                    $syncResults['errors']++;
+                    $unmatchedSegmentacoesTotal++;
+                    $key = Str::lower(trim($produtosSegmentos));
+
+                    if (!array_key_exists($key, $unmatchedSegmentacoes)) {
+                        $unmatchedSegmentacoes[$key] = [
+                            'value' => $produtosSegmentos,
+                            'lines' => [],
+                        ];
+                    }
+
+                    $unmatchedSegmentacoes[$key]['lines'][] = $sheetLine;
+                    continue;
+                }
+
                 $segmentacaoCliente = $this->upsertSegmentacaoCliente(
                     $segmentoCliente,
-                    $produtosSegmentos,
-                    'Segmentacao criada automaticamente via sincronizacao da planilha de segmentacao de cliente'
+                    $produtosSegmentosId,
+                    'Segmentacao criada automaticamente via sincronizacao da planilha de segmentacao de cliente',
+                    $linha
                 );
 
                 if ($segmentacaoCliente->wasRecentlyCreated) {
@@ -105,7 +134,7 @@ class GoogleSheetController extends Controller
                     continue;
                 }
 
-                if ($segmentacaoCliente->wasChanged(['nome', 'descricao', 'slug', 'active', 'produtos_segmentos', 'deleted_at'])) {
+                if ($segmentacaoCliente->wasChanged(['nome', 'descricao', 'slug', 'active', 'produtos_segmentos', 'linha', 'deleted_at'])) {
                     $syncResults['updated']++;
                 } else {
                     $syncResults['skipped']++;
@@ -117,6 +146,33 @@ class GoogleSheetController extends Controller
             $message = "Sincronizacao de segmentacao de cliente concluida! "
                 . "Novos: {$syncResults['created']}, Atualizados: {$syncResults['updated']}, "
                 . "Ignorados: {$syncResults['skipped']}, Erros: {$syncResults['errors']}";
+
+            if (!empty($unmatchedSegmentacoes)) {
+                $distinct = count($unmatchedSegmentacoes);
+                $message .= "\n\nPRODUTOS_SEGMENTOS sem correspondencia em segmentacao: {$distinct} valor(es) ({$unmatchedSegmentacoesTotal} ocorrencia(s)).";
+
+                $lines = [];
+                foreach ($unmatchedSegmentacoes as $item) {
+                    $uniqueLines = array_values(array_unique($item['lines']));
+                    sort($uniqueLines);
+                    $previewLines = array_slice($uniqueLines, 0, 10);
+                    $lineSuffix = count($uniqueLines) > 10 ? '...' : '';
+                    $lines[] = "- {$item['value']} (linhas: " . implode(', ', $previewLines) . $lineSuffix . ')';
+                }
+
+                $message .= "\n" . implode("\n", $lines);
+
+                Log::warning('Valores PRODUTOS_SEGMENTOS sem correspondencia em segmentacao', [
+                    'spreadsheet_id' => $spreadsheetId,
+                    'sheet' => $sheetName,
+                    'distinct' => $distinct,
+                    'total_occurrences' => $unmatchedSegmentacoesTotal,
+                    'values' => array_values(array_map(fn ($item) => [
+                        'value' => $item['value'],
+                        'lines' => array_values(array_unique($item['lines'])),
+                    ], $unmatchedSegmentacoes)),
+                ]);
+            }
 
             if (!empty($syncResults['messages'])) {
                 $message .= "\n\nDetalhes:\n" . implode("\n", $syncResults['messages']);
@@ -160,14 +216,14 @@ class GoogleSheetController extends Controller
     private function resolveValueDomain(Request $request): string
     {
         return match($request->getHost()) {
-            '127.0.0.1' => 'TESTE (MZ)',
+            '127.0.0.1' => 'TESTE (UA)',
             'catalogo.olympikus.com.br' => 'OLYMPIKUS',
             'testeolympikus.neooh.com.br' => 'TESTE (OLY)',
             'catalogo.underarmourbr.com.br' => 'UNDER ARMOUR',
             'testeunderarmour.neooh.com.br' => 'TESTE (UA)',
             'catalogo.mizuno.com.br' => 'MIZUNO',
-            'mizuno-catalogo.neooh.com.br' => 'TESTE (MZ)',
-            default => 'MIZUNO',            
+            'testemizuno.neooh.com.br' => 'TESTE (MZ)',
+            default => 'MIZUNO',
         };
     }
 
@@ -183,7 +239,7 @@ class GoogleSheetController extends Controller
             'messages' => []
         ];
 
-        try { 
+        try {
             DB::beginTransaction();
 
             // Lê os cabeçalhos das colunas
@@ -817,7 +873,7 @@ class GoogleSheetController extends Controller
             'name' => $collectionName,
             'description' => $collectionSecondaryName,
             'codigo_colecao' => $codigoColecao,
-            'active' => false,
+            //'active' => false,
         ]);
 
         $collection->save();
@@ -905,40 +961,16 @@ class GoogleSheetController extends Controller
             ->get();
 
         if ($flagsSameTitle->isEmpty()) {
-            // Nenhum existente: cria novo e retorna
-            $created = FlagProduct::create([
-                'flag_title' => $flagName,
-                'flag_description' => $flagName,
-                'flag_bg' => '#000000',
-                'flag_color_text_bg' => '#ffffff',
-                'alinhamento' => 'left',
-                'status' => true,
-            ]);
-
             if (is_array($syncResults)) {
-                $syncResults['_notified_missing_flags'] = $syncResults['_notified_missing_flags'] ?? [];
-                $key = mb_strtolower($flagName, 'UTF-8');
-                if (!isset($syncResults['_notified_missing_flags'][$key])) {
-                    $syncResults['_notified_missing_flags'][$key] = true;
-
-                    $parts = [];
-                    if (!empty($sku)) {
-                        $parts[] = "SKU {$sku}";
-                    }
-                    if (!empty($colorCode)) {
-                        $parts[] = "cor {$colorCode}";
-                    }
-                    if (!empty($rowIndexes)) {
-                        $rowsText = is_array($rowIndexes) ? implode(', ', $rowIndexes) : (string) $rowIndexes;
-                        $parts[] = "linhas {$rowsText}";
-                    }
-
-                    $details = empty($parts) ? '' : ' (' . implode(', ', $parts) . ')';
-                    $syncResults['messages'][] = "Flag {$flagName} não estava cadastrada e foi criada automaticamente{$details}.";
-                }
+                $syncResults['errors']++;
+                $rows = is_array($rowIndexes) ? implode(', ', $rowIndexes) : (string) $rowIndexes;
+                $rowsText = $rows !== '' ? " (linhas {$rows})" : '';
+                $skuText = !empty($sku) ? " SKU {$sku}" : '';
+                $colorText = !empty($colorCode) ? " cor {$colorCode}" : '';
+                $syncResults['messages'][] = "Flag {$flagName} não existe e precisa ser cadastrada antes de ser vinculada ao produto{$skuText}{$colorText}{$rowsText}.";
             }
 
-            return $created;
+            return null;
         }
 
         if ($flagsSameTitle->count() === 1) {
@@ -1925,7 +1957,32 @@ class GoogleSheetController extends Controller
         return $segmentacaoIds;
     }
 
-    private function upsertSegmentacaoCliente(string $segmento, ?string $produtosSegmentos = null, string $descricao = 'Segmentacao criada automaticamente via sincronizacao'): SegmentacaoCliente
+    private function resolveSegmentacaoReference(?string $reference): ?int
+    {
+        $reference = trim((string) $reference);
+
+        if ($reference === '' || $reference === '-') {
+            return null;
+        }
+
+        if (ctype_digit($reference)) {
+            $segmentacao = Segmentacao::find((int) $reference);
+            if ($segmentacao) {
+                return $segmentacao->id;
+            }
+        }
+
+        $slug = Str::slug($reference);
+
+        $segmentacao = Segmentacao::query()
+            ->where('slug', $slug)
+            ->orWhereRaw('LOWER(segmento) = ?', [Str::lower($reference)])
+            ->first();
+
+        return $segmentacao?->id;
+    }
+
+    private function upsertSegmentacaoCliente(string $segmento, ?int $produtosSegmentos = null, string $descricao = 'Segmentacao criada automaticamente via sincronizacao', ?string $linha = null): SegmentacaoCliente
     {
         $segmento = trim($segmento);
         $slug = Str::slug($segmento);
@@ -1938,7 +1995,12 @@ class GoogleSheetController extends Controller
         ];
 
         if ($produtosSegmentos !== null) {
-            $attributes['produtos_segmentos'] = trim($produtosSegmentos) !== '' ? trim($produtosSegmentos) : null;
+            $attributes['produtos_segmentos'] = $produtosSegmentos;
+        }
+
+        if ($linha !== null) {
+            $linha = trim($linha);
+            $attributes['linha'] = $linha !== '' && $linha !== '-' ? $linha : null;
         }
 
         $segmentacaoCliente = SegmentacaoCliente::withTrashed()->updateOrCreate(

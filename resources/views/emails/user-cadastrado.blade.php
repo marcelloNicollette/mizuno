@@ -45,7 +45,7 @@
 <body>
     <div class="header center">
         <h1>Bem-vindo ao Sistema!</h1>
-        <img src="http://127.0.0.1:8000/images/logo-Olympikus.png" alt="Logo Mizuno" style="width: 100px;">
+        <img src="http://127.0.0.1:8000/images/logo-Mizuno.png" alt="Logo Mizuno" style="width: 100px;">
     </div>
 
     <div class="content">
@@ -74,7 +74,7 @@
     </div>
 
     <div class="footer">
-        <p>Atenciosamente,<br>Equipe Olympikus</p>
+        <p>Atenciosamente,<br>Equipe Mizuno</p>
     </div>
 </body>
 

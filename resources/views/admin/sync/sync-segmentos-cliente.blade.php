@@ -1,6 +1,6 @@
 @extends('layouts.admin-layout')
 
-@section('page_title', 'Mizuno - Sincronização Produtos Google Sheets')
+@section('page_title', 'Mizuno - Sincronização Segmentos de Cliente Google Sheets')
 <style>
     h1 {
         color: #333;
@@ -96,6 +96,7 @@
         cursor: not-allowed;
         transform: none;
     }
+
 
     .btn-users {
         background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
@@ -200,53 +201,37 @@
         @endif
 
         <!-- Sincronização de Produtos -->
-        <div class="sync-section">
-            <h2 class="section-title">📦 Sincronização de Produtos</h2>
+
+
+        <div class="sync-section" id="sync-segmentacao-cliente">
+            <h2 class="section-title">🏷️ Sincronização de Segmentação de Cliente</h2>
             <div class="info-box">
-                <h3>📋 Sobre a Sincronização de Produtos</h3>
-                <p>Este processo irá sincronizar os dados da aba <strong>MIZUNO</strong> da planilha Google
-                    Sheets com o banco de dados do sistema, incluindo:</p>
+                <h3>📋 Sobre a Sincronização de Segmentação de Cliente</h3>
+                <p>Este processo lê a planilha dedicada de segmentação de cliente e atualiza a tabela
+                    <strong>segmentacao_cliente</strong> com as colunas:
+                </p>
                 <ul>
-                    <li><strong>Produtos:</strong> Nome, descrição, código, SKU, preço</li>
-                    <li><strong>Categorias e Subcategorias:</strong> Criação automática se não existirem</li>
-                    <li><strong>Cores:</strong> Até 10 cores por produto com códigos</li>
-                    <li><strong>Características:</strong> Peso, drop, origem, tecnologia, gênero, modalidade</li>
-                    <li><strong>Numerações:</strong> Tamanhos disponíveis com controle de estoque</li>
-                    <li><strong>Links:</strong> URLs relacionadas aos produtos</li>
-                    <li><strong>Calendário:</strong> Datas de lançamento (MKT, Trade, Cliente, DTC)</li>
+                    <li><strong>A:</strong> SEGMENTO_CLIENTE</li>
+                    <li><strong>B:</strong> PRODUTOS_SEGMENTOS</li>
                 </ul>
             </div>
 
             <div class="process-info">
                 <h4>⚠️ Importante:</h4>
                 <ul>
-                    <li>O processo pode demorar alguns minutos dependendo da quantidade de dados</li>
-                    <li>Produtos existentes serão atualizados com base no SKU</li>
-                    <li>Dados relacionados (cores, características, etc.) serão substituídos</li>
-                    <li>Mantenha a página aberta durante o processo</li>
+                    <li>Segmentos existentes são localizados pelo slug gerado a partir do nome</li>
+                    <li>O campo <strong>PRODUTOS_SEGMENTOS</strong> é atualizado a partir da planilha</li>
+                    <li>Registros com nome vazio são ignorados durante o sincronismo</li>
                 </ul>
             </div>
 
-            <form action="{{ route('admin.sync-sheet') }}" method="get" class="sync-form">
+            <form action="{{ route('admin.sync-segmentacao-cliente') }}" method="get" class="sync-form">
                 <button type="submit" class="btn-sync"
                     onclick="this.disabled=true; this.innerHTML='🔄 Sincronizando...'; this.form.submit();">
-                    Iniciar Sincronização de Produtos
-                </button>
-            </form>
-
-            <form action="{{ route('admin.sync-sheet-reverse') }}" method="get" class="sync-form"
-                style="margin-top: 12px;">
-                <input type="hidden" name="preview" value="0">
-                <button type="submit" class="btn-sync-2"
-                    onclick="this.disabled=true; this.innerHTML='⬆️ Enviando...'; this.form.submit();">
-                    ⬆️ Sincronizar Banco → Planilha
+                    Iniciar Sincronização de Segmentação
                 </button>
             </form>
         </div>
-
-
-
-
 
     </div>
 @endsection

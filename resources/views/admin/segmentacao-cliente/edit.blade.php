@@ -78,13 +78,31 @@
 
                 <div class="mt-6">
                     <label for="produtos_segmentos" class="block text-sm font-medium text-gray-700 mb-2">
-                        Produtos Segmentos
+                        Segmentação Vinculada
                     </label>
-                    <input type="text" name="produtos_segmentos" id="produtos_segmentos" rows="4"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 @error('produtos_segmentos') border-red-500 @enderror"
-                        placeholder="Descreva a segmentação..."
-                        value="{{ old('produtos_segmentos', $segmentacaoCliente->produtos_segmentos) }}">
+                    <select name="produtos_segmentos" id="produtos_segmentos"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 @error('produtos_segmentos') border-red-500 @enderror">
+                        <option value="">Selecione uma segmentação</option>
+                        @foreach ($segmentacoes as $segmentacao)
+                            <option value="{{ $segmentacao->id }}"
+                                {{ (string) old('produtos_segmentos', $segmentacaoCliente->produtos_segmentos) === (string) $segmentacao->id ? 'selected' : '' }}>
+                                {{ $segmentacao->segmento }}
+                            </option>
+                        @endforeach
+                    </select>
                     @error('produtos_segmentos')
+                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <div class="mt-6">
+                    <label for="linha" class="block text-sm font-medium text-gray-700 mb-2">
+                        Linha
+                    </label>
+                    <input type="text" name="linha" id="linha"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 @error('linha') border-red-500 @enderror"
+                        placeholder="Ex.: Running, Casual" value="{{ old('linha', $segmentacaoCliente->linha) }}">
+                    @error('linha')
                         <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                     @enderror
                 </div>

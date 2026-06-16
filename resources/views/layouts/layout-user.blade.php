@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ $title ?? 'Mizuno' }}</title>
     <!-- Favicon -->
-    <link rel="icon" href="/images/Favicon_Olympikus.png" type="image/png">
+    <link rel="icon" href="/images/Favicon_Mizuno.svg" type="image/png">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>

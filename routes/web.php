@@ -321,7 +321,9 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('/admin/sync-sheet', [AdminGoogleSheetController::class, 'sync'])
         ->name('admin.sync-sheet');
     Route::get('/admin/sync-segmentacao-cliente', [AdminGoogleSheetController::class, 'syncSegmentacaoCliente'])
-        ->name('admin.sync-segmentacao-cliente');
+        ->name('admin.sync-segmentacao-cliente');   
+    Route::get('/admin/sync-segmentacao', [AdminGoogleSheetController::class, 'syncSegmentacaoClienteShow'])
+        ->name('admin.sync-segmentacao-cliente-show');
     Route::get('/admin/sync-sheet-reverse', [AdminGoogleSheetController::class, 'syncReverse'])
         ->name('admin.sync-sheet-reverse');
     Route::get('/admin/sync-users', [AdminGoogleSheetController::class, 'syncUsers'])

@@ -72,7 +72,7 @@ class SharedCollectionController extends Controller
 
         // Construct the base URL for product links: /user/{userSlug}/colecoes/{collectionSlug}
         $currentSlug = '/user/' . $user->slug . '/colecoes/' . $colecao->slug;
-        $segmentacaoSlug = $segmentacao->slug ?? 'olympikus'; // Default or retrieve from relation
+        $segmentacaoSlug = $segmentacao->slug ?? 'mizuno'; // Default or retrieve from relation
 
         // Load necessary data for the view
         $categories = Category::where('segmento_id', $segmentacao->id)->get();

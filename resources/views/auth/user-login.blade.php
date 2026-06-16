@@ -8,7 +8,7 @@
     <title>Mizuno</title>
 
     <!-- Favicon -->
-    <link rel="icon" href="/images/Favicon_Olympikus.png" type="image/png">
+    <link rel="icon" href="/images/Favicon_Mizuno.svg" type="image/png">
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
@@ -32,10 +32,10 @@
         <div
             class="lg:w-[40%] 2xl:w-[30%] 3xl:w-[20%] w-full bg-[#2735D4] flex flex-col items-center justify-start lg:justify-center p-6 lg:p-12 rounded-xl">
             <!-- Logo -->
-            <img src="/images/logo-branco.png" alt="Olympikus" class="mb-6">
+            <img src="/images/logo-branco.png" alt="Mizuno" class="mb-6">
 
             <!-- Título -->
-            <h2 class="text-xl text-white text-center m-5">Bem-vindo ao catálogo digital da Olympikus.</h2>
+            <h2 class="text-xl text-white text-center m-5">Bem-vindo ao catálogo digital da Mizuno.</h2>
 
             <!-- Formulário -->
             <form class="w-full max-w-xs" method="POST" action="{{ url('/admin/login') }}">

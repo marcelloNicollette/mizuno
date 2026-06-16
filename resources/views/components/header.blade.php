@@ -9,6 +9,10 @@
 
 @php
     $segmentacoes = \App\Models\Segmentacao::where('active', 1)->get();
+    $segmentacoesClienteDisponiveis =
+        $user && $user->segmentacoesCliente->count() > 0
+            ? $user->segmentacoesCliente->where('active', true)->values()
+            : \App\Models\SegmentacaoCliente::where('active', true)->get();
     $currentUrl = request()->path();
     $currentSlug = '';
     $parts = [];
@@ -24,6 +28,9 @@
     if (count($parts) >= 4 && ($parts[2] ?? null) === 'colecoes') {
         $backColecoesUrl = url('/user/' . $parts[1] . '/colecoes');
     }
+    $currentSegmentacao = $segmentacoes->firstWhere('slug', $currentSlug);
+    $currentSegmentoNome = optional($currentSegmentacao)->segmento ?? '';
+    $currentSegmentoId = optional($currentSegmentacao)->id;
 @endphp
 
 @if ($type === '')
@@ -131,7 +138,145 @@
                                 <div x-data="{
                                     showModal: false,
                                     selectedSegmentacoes: [],
-                                    segmentacoesDisponiveis: @js($user && $user->segmentacoesCliente->count() > 0 ? $user->segmentacoesCliente : \App\Models\SegmentacaoCliente::where('active', true)->get()),
+                                    searchSegmentacao: '',
+                                    segmentoAtualId: @js($currentSegmentoId),
+                                    linhasSelecionadas: [],
+                                    linhasFiltroAtivas: [],
+                                    todosLinhaAtivo: false,
+                                    segmentacoesBase: @js($segmentacoesClienteDisponiveis),
+                                    normalizeContexto(value) {
+                                        return (value || '')
+                                            .toString()
+                                            .normalize('NFD')
+                                            .replace(/[\u0300-\u036f]/g, '')
+                                            .toUpperCase()
+                                            .replace(/[^A-Z0-9]+/g, '_')
+                                            .replace(/^_+|_+$/g, '');
+                                    },
+                                    parseLinhas(value) {
+                                        return (value || '')
+                                            .toString()
+                                            .split(/[,;|\/\n]+/)
+                                            .map(item => this.normalizeContexto(item))
+                                            .filter(Boolean);
+                                    },
+                                    hasVinculoComSegmentacao(segmentacao) {
+                                        if (!this.segmentoAtualId) {
+                                            return false;
+                                        }
+                                
+                                        return String(segmentacao.produtos_segmentos || '') === String(this.segmentoAtualId);
+                                    },
+                                    hasVinculoComLinha(segmentacao) {
+                                        if (!Array.isArray(this.linhasSelecionadas) || this.linhasSelecionadas.length === 0) {
+                                            return true;
+                                        }
+                                
+                                        const linhasSegmentacao = this.parseLinhas(segmentacao.linha);
+                                        if (linhasSegmentacao.length === 0) {
+                                            return false;
+                                        }
+                                
+                                        return this.linhasSelecionadas.some(linha => linhasSegmentacao.includes(linha));
+                                    },
+                                    isSegmentacaoDisponivel(segmentacao) {
+                                        return this.hasVinculoComSegmentacao(segmentacao) && this.hasVinculoComLinha(segmentacao);
+                                    },
+                                    get segmentacoesContexto() {
+                                        return (this.segmentacoesBase || []).filter(segmentacao => this.isSegmentacaoDisponivel(segmentacao));
+                                    },
+                                    get linhasFiltroDisponiveis() {
+                                        return [...new Set(this.segmentacoesContexto
+                                            .flatMap(segmentacao => this.parseLinhas(segmentacao.linha))
+                                            .filter(Boolean))];
+                                    },
+                                    matchesLinhaFiltro(segmentacao) {
+                                        if (this.linhasFiltroAtivas.length === 0) {
+                                            return true;
+                                        }
+                                
+                                        const linhasSegmentacao = this.parseLinhas(segmentacao.linha);
+                                        return this.linhasFiltroAtivas.some(linha => linhasSegmentacao.includes(linha));
+                                    },
+                                    toggleLinhaFiltro(linha, checked) {
+                                        this.todosLinhaAtivo = false;
+                                        const linhaNormalizada = this.normalizeContexto(linha);
+                                
+                                        if (!linhaNormalizada) {
+                                            this.linhasFiltroAtivas = [];
+                                        } else if (checked) {
+                                            if (!this.linhasFiltroAtivas.includes(linhaNormalizada)) {
+                                                this.linhasFiltroAtivas.push(linhaNormalizada);
+                                            }
+                                        } else {
+                                            this.linhasFiltroAtivas = this.linhasFiltroAtivas.filter(item => item !== linhaNormalizada);
+                                        }
+                                
+                                        if (checked && linhaNormalizada) {
+                                            const idsVisiveis = this.segmentacoesDisponiveis.map(s => s.id);
+                                            this.selectedSegmentacoes = Array.from(new Set([...this.selectedSegmentacoes, ...idsVisiveis]));
+                                        } else if (!checked && linhaNormalizada) {
+                                            const idsParaRemover = (this.segmentacoesContexto || [])
+                                                .filter(segmentacao => this.parseLinhas(segmentacao.linha).includes(linhaNormalizada))
+                                                .map(segmentacao => segmentacao.id);
+                                            this.selectedSegmentacoes = this.selectedSegmentacoes.filter(id => !idsParaRemover.includes(id));
+                                        }
+                                
+                                        const idsPermitidos = this.segmentacoesDisponiveis.map(segmentacao => segmentacao.id);
+                                        this.selectedSegmentacoes = this.selectedSegmentacoes.filter(id => idsPermitidos.includes(id));
+                                        this.persistSelected();
+                                    },
+                                    toggleTodosLinha(checked) {
+                                        this.todosLinhaAtivo = checked;
+                                        this.linhasFiltroAtivas = [];
+                                
+                                        if (checked) {
+                                            const idsVisiveis = this.segmentacoesDisponiveis.map(s => s.id);
+                                            this.selectedSegmentacoes = Array.from(new Set([...this.selectedSegmentacoes, ...idsVisiveis]));
+                                        } else {
+                                            this.selectedSegmentacoes = [];
+                                        }
+                                
+                                        this.persistSelected();
+                                    },
+                                    syncLinhaFiltroAtual() {
+                                        const linhasPreferenciais = this.linhasSelecionadas.filter(linha => this.linhasFiltroDisponiveis.includes(linha));
+                                        this.linhasFiltroAtivas = linhasPreferenciais;
+                                        this.todosLinhaAtivo = false;
+                                        if (this.linhasFiltroAtivas.length > 0) {
+                                            const idsVisiveis = this.segmentacoesDisponiveis.map(s => s.id);
+                                            this.selectedSegmentacoes = Array.from(new Set([...this.selectedSegmentacoes, ...idsVisiveis]));
+                                            this.persistSelected();
+                                        }
+                                    },
+                                    get segmentacoesDisponiveis() {
+                                        const termoBusca = (this.searchSegmentacao || '').toLowerCase().trim();
+                                
+                                        return this.segmentacoesContexto.filter(segmentacao => {
+                                            if (!this.matchesLinhaFiltro(segmentacao)) {
+                                                return false;
+                                            }
+                                
+                                            if (!termoBusca) {
+                                                return true;
+                                            }
+                                
+                                            return (segmentacao.nome || '').toLowerCase().includes(termoBusca);
+                                        });
+                                    },
+                                    get totalSelecionadasVisiveis() {
+                                        const idsVisiveis = this.segmentacoesDisponiveis.map(segmentacao => segmentacao.id);
+                                        return this.selectedSegmentacoes.filter(id => idsVisiveis.includes(id)).length;
+                                    },
+                                    atualizarLinhasSelecionadas(linhas) {
+                                        this.linhasSelecionadas = (Array.isArray(linhas) ? linhas : [])
+                                            .map(item => this.normalizeContexto(item))
+                                            .filter(Boolean);
+                                        this.syncLinhaFiltroAtual();
+                                        const idsPermitidos = this.segmentacoesDisponiveis.map(segmentacao => segmentacao.id);
+                                        this.selectedSegmentacoes = this.selectedSegmentacoes.filter(id => idsPermitidos.includes(id));
+                                        this.persistSelected();
+                                    },
                                     toggleSegmentacao(id) {
                                         const index = this.selectedSegmentacoes.indexOf(id);
                                         if (index > -1) {
@@ -165,6 +310,11 @@
                                                 this.selectedSegmentacoes = [];
                                             }
                                         }
+                                        const linhasSalvas = JSON.parse(localStorage.getItem('selectedSegmentacaoLinhas') || '[]');
+                                        this.atualizarLinhasSelecionadas(linhasSalvas);
+                                        window.addEventListener('segmentacao-category-changed', (event) => {
+                                            this.atualizarLinhasSelecionadas(event.detail?.linhas || []);
+                                        });
                                     }
                                 }" class="relative pl-[10px]">
                                     <!-- Botão CTA -->
@@ -208,33 +358,48 @@
                                                 </div>
 
                                                 <!-- Header com controles -->
-                                                <div class="flex justify-between items-center mb-4">
-                                                    <div class="flex items-center gap-4">
+                                                <div class="mb-4">
+                                                    <div class="text-xs text-gray-500 mb-2">Linha</div>
+                                                    <div class="flex items-center gap-2 flex-wrap mb-3">
                                                         <label class="flex items-center">
-                                                            <input type="checkbox" id="selecionarTodosSegmentacoes"
-                                                                class="w-[15px] h-[15px] rounded border-2 border-[#7A7A7A] bg-white checked:bg-white checked:border-[#7A7A7A] focus:ring-0 cursor-pointer relative mr-3"
-                                                                :checked="selectedSegmentacoes.length === segmentacoesDisponiveis
-                                                                    .length && segmentacoesDisponiveis.length > 0"
-                                                                @change="toggleSelectAll($event.target.checked)">
-                                                            <span>Selecionar todos</span>
+                                                            <input type="checkbox" :checked="todosLinhaAtivo"
+                                                                @change="toggleTodosLinha($event.target.checked)"
+                                                                class="w-[15px] h-[15px] rounded border-2 border-[#7A7A7A] bg-white checked:bg-white checked:border-[#7A7A7A] focus:ring-0 cursor-pointer relative mr-2">
+                                                            <span>Todos</span>
                                                         </label>
-                                                        <span class="text-xs opacity-50">Selecionados: <span
-                                                                x-text="selectedSegmentacoes.length"></span></span>
-                                                        <span class="text-xs opacity-50">Total: <span
-                                                                x-text="segmentacoesDisponiveis.length"></span></span>
+                                                        <template x-for="linha in linhasFiltroDisponiveis"
+                                                            :key="linha">
+                                                            <label class="inline-flex items-center">
+                                                                <input type="checkbox"
+                                                                    :checked="linhasFiltroAtivas.includes(linha)"
+                                                                    @change="toggleLinhaFiltro(linha, $event.target.checked)"
+                                                                    class="w-[15px] h-[15px] rounded border-2 border-[#7A7A7A] bg-white checked:bg-white checked:border-[#7A7A7A] focus:ring-0 cursor-pointer relative mr-2">
+                                                                <span class="text-base"
+                                                                    x-text="linha.replaceAll('_', ' ')"></span>
+                                                            </label>
+                                                        </template>
                                                     </div>
-                                                    <div class="flex items-center gap-2">
-                                                        <div class="flex items-center border-b border-b-black px-2">
-                                                            <svg xmlns="http://www.w3.org/2000/svg"
-                                                                class="h-4 w-4 text-black ml-1" viewBox="0 0 20 20"
-                                                                fill="currentColor">
-                                                                <path fill-rule="evenodd"
-                                                                    d="M12.9 14.32a8 8 0 111.414-1.414l4.387 4.387a1 1 0 01-1.414 1.414l-4.387-4.387zM8 14a6 6 0 100-12 6 6 0 000 12z"
-                                                                    clip-rule="evenodd" />
-                                                            </svg>
-                                                            <input id="searchSegmentacaoInput" type="text"
-                                                                placeholder="Buscar"
-                                                                class="input-estilizado bg-transparent border-0 focus:outline-none focus:ring-0 p-1" />
+                                                    <div class="flex justify-between items-center gap-4">
+                                                        <div class="flex items-center gap-4">
+                                                            <span class="text-xs opacity-50">Selecionados: <span
+                                                                    x-text="totalSelecionadasVisiveis"></span></span>
+                                                            <span class="text-xs opacity-50">Total: <span
+                                                                    x-text="segmentacoesDisponiveis.length"></span></span>
+                                                        </div>
+                                                        <div class="flex items-center gap-2">
+                                                            <div
+                                                                class="flex items-center border-b border-b-black px-2">
+                                                                <svg xmlns="http://www.w3.org/2000/svg"
+                                                                    class="h-4 w-4 text-black ml-1"
+                                                                    viewBox="0 0 20 20" fill="currentColor">
+                                                                    <path fill-rule="evenodd"
+                                                                        d="M12.9 14.32a8 8 0 111.414-1.414l4.387 4.387a1 1 0 01-1.414 1.414l-4.387-4.387zM8 14a6 6 0 100-12 6 6 0 000 12z"
+                                                                        clip-rule="evenodd" />
+                                                                </svg>
+                                                                <input type="text" x-model="searchSegmentacao"
+                                                                    placeholder="Buscar"
+                                                                    class="input-estilizado bg-transparent border-0 focus:outline-none focus:ring-0 p-1" />
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -266,6 +431,13 @@
                                                                     </td>
                                                                 </tr>
                                                             </template>
+                                                            <tr x-show="segmentacoesDisponiveis.length === 0">
+                                                                <td class="py-[10px] px-4 text-sm text-gray-500">
+                                                                    Nenhum segmento disponivel para a
+                                                                    categoria/segmentacao atual.
+                                                                    selecionada.
+                                                                </td>
+                                                            </tr>
                                                         </tbody>
                                                     </table>
                                                 </div>
@@ -313,7 +485,7 @@
                             @csrf
                             <button
                                 class="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors duration-150"
-                                onclick="localStorage.removeItem('selectedSegmentacoes');">
+                                onclick="localStorage.removeItem('selectedSegmentacoes'); localStorage.removeItem('selectedSegmentacaoCategoria'); localStorage.removeItem('selectedSegmentacaoLinhas');">
                                 <img src="/images/icones/logout.svg" alt="Logout" />
                             </button>
                         </form>
@@ -393,7 +565,145 @@
                                     <div x-data="{
                                         showModal: false,
                                         selectedSegmentacoes: [],
-                                        segmentacoesDisponiveis: @js($user && $user->segmentacoesCliente->count() > 0 ? $user->segmentacoesCliente : \App\Models\SegmentacaoCliente::where('active', true)->get()),
+                                        searchSegmentacao: '',
+                                        segmentoAtualId: @js($currentSegmentoId),
+                                        linhasSelecionadas: [],
+                                        linhasFiltroAtivas: [],
+                                        todosLinhaAtivo: false,
+                                        segmentacoesBase: @js($segmentacoesClienteDisponiveis),
+                                        normalizeContexto(value) {
+                                            return (value || '')
+                                                .toString()
+                                                .normalize('NFD')
+                                                .replace(/[\u0300-\u036f]/g, '')
+                                                .toUpperCase()
+                                                .replace(/[^A-Z0-9]+/g, '_')
+                                                .replace(/^_+|_+$/g, '');
+                                        },
+                                        parseLinhas(value) {
+                                            return (value || '')
+                                                .toString()
+                                                .split(/[,;|\/\n]+/)
+                                                .map(item => this.normalizeContexto(item))
+                                                .filter(Boolean);
+                                        },
+                                        hasVinculoComSegmentacao(segmentacao) {
+                                            if (!this.segmentoAtualId) {
+                                                return false;
+                                            }
+                                    
+                                            return String(segmentacao.produtos_segmentos || '') === String(this.segmentoAtualId);
+                                        },
+                                        hasVinculoComLinha(segmentacao) {
+                                            if (!Array.isArray(this.linhasSelecionadas) || this.linhasSelecionadas.length === 0) {
+                                                return true;
+                                            }
+                                    
+                                            const linhasSegmentacao = this.parseLinhas(segmentacao.linha);
+                                            if (linhasSegmentacao.length === 0) {
+                                                return false;
+                                            }
+                                    
+                                            return this.linhasSelecionadas.some(linha => linhasSegmentacao.includes(linha));
+                                        },
+                                        isSegmentacaoDisponivel(segmentacao) {
+                                            return this.hasVinculoComSegmentacao(segmentacao) && this.hasVinculoComLinha(segmentacao);
+                                        },
+                                        get segmentacoesContexto() {
+                                            return (this.segmentacoesBase || []).filter(segmentacao => this.isSegmentacaoDisponivel(segmentacao));
+                                        },
+                                        get linhasFiltroDisponiveis() {
+                                            return [...new Set(this.segmentacoesContexto
+                                                .flatMap(segmentacao => this.parseLinhas(segmentacao.linha))
+                                                .filter(Boolean))];
+                                        },
+                                        matchesLinhaFiltro(segmentacao) {
+                                            if (this.linhasFiltroAtivas.length === 0) {
+                                                return true;
+                                            }
+                                    
+                                            const linhasSegmentacao = this.parseLinhas(segmentacao.linha);
+                                            return this.linhasFiltroAtivas.some(linha => linhasSegmentacao.includes(linha));
+                                        },
+                                        toggleLinhaFiltro(linha, checked) {
+                                            this.todosLinhaAtivo = false;
+                                            const linhaNormalizada = this.normalizeContexto(linha);
+                                    
+                                            if (!linhaNormalizada) {
+                                                this.linhasFiltroAtivas = [];
+                                            } else if (checked) {
+                                                if (!this.linhasFiltroAtivas.includes(linhaNormalizada)) {
+                                                    this.linhasFiltroAtivas.push(linhaNormalizada);
+                                                }
+                                            } else {
+                                                this.linhasFiltroAtivas = this.linhasFiltroAtivas.filter(item => item !== linhaNormalizada);
+                                            }
+                                    
+                                            if (checked && linhaNormalizada) {
+                                                const idsVisiveis = this.segmentacoesDisponiveis.map(s => s.id);
+                                                this.selectedSegmentacoes = Array.from(new Set([...this.selectedSegmentacoes, ...idsVisiveis]));
+                                            } else if (!checked && linhaNormalizada) {
+                                                const idsParaRemover = (this.segmentacoesContexto || [])
+                                                    .filter(segmentacao => this.parseLinhas(segmentacao.linha).includes(linhaNormalizada))
+                                                    .map(segmentacao => segmentacao.id);
+                                                this.selectedSegmentacoes = this.selectedSegmentacoes.filter(id => !idsParaRemover.includes(id));
+                                            }
+                                    
+                                            const idsPermitidos = this.segmentacoesDisponiveis.map(segmentacao => segmentacao.id);
+                                            this.selectedSegmentacoes = this.selectedSegmentacoes.filter(id => idsPermitidos.includes(id));
+                                            this.persistSelected();
+                                        },
+                                        toggleTodosLinha(checked) {
+                                            this.todosLinhaAtivo = checked;
+                                            this.linhasFiltroAtivas = [];
+                                    
+                                            if (checked) {
+                                                const idsVisiveis = this.segmentacoesDisponiveis.map(s => s.id);
+                                                this.selectedSegmentacoes = Array.from(new Set([...this.selectedSegmentacoes, ...idsVisiveis]));
+                                            } else {
+                                                this.selectedSegmentacoes = [];
+                                            }
+                                    
+                                            this.persistSelected();
+                                        },
+                                        syncLinhaFiltroAtual() {
+                                            const linhasPreferenciais = this.linhasSelecionadas.filter(linha => this.linhasFiltroDisponiveis.includes(linha));
+                                            this.linhasFiltroAtivas = linhasPreferenciais;
+                                            this.todosLinhaAtivo = false;
+                                            if (this.linhasFiltroAtivas.length > 0) {
+                                                const idsVisiveis = this.segmentacoesDisponiveis.map(s => s.id);
+                                                this.selectedSegmentacoes = Array.from(new Set([...this.selectedSegmentacoes, ...idsVisiveis]));
+                                                this.persistSelected();
+                                            }
+                                        },
+                                        get segmentacoesDisponiveis() {
+                                            const termoBusca = (this.searchSegmentacao || '').toLowerCase().trim();
+                                    
+                                            return this.segmentacoesContexto.filter(segmentacao => {
+                                                if (!this.matchesLinhaFiltro(segmentacao)) {
+                                                    return false;
+                                                }
+                                    
+                                                if (!termoBusca) {
+                                                    return true;
+                                                }
+                                    
+                                                return (segmentacao.nome || '').toLowerCase().includes(termoBusca);
+                                            });
+                                        },
+                                        get totalSelecionadasVisiveis() {
+                                            const idsVisiveis = this.segmentacoesDisponiveis.map(segmentacao => segmentacao.id);
+                                            return this.selectedSegmentacoes.filter(id => idsVisiveis.includes(id)).length;
+                                        },
+                                        atualizarLinhasSelecionadas(linhas) {
+                                            this.linhasSelecionadas = (Array.isArray(linhas) ? linhas : [])
+                                                .map(item => this.normalizeContexto(item))
+                                                .filter(Boolean);
+                                            this.syncLinhaFiltroAtual();
+                                            const idsPermitidos = this.segmentacoesDisponiveis.map(segmentacao => segmentacao.id);
+                                            this.selectedSegmentacoes = this.selectedSegmentacoes.filter(id => idsPermitidos.includes(id));
+                                            this.persistSelected();
+                                        },
                                         toggleSegmentacao(id) {
                                             const index = this.selectedSegmentacoes.indexOf(id);
                                             if (index > -1) {
@@ -425,6 +735,11 @@
                                                     this.selectedSegmentacoes = [];
                                                 }
                                             }
+                                            const linhasSalvas = JSON.parse(localStorage.getItem('selectedSegmentacaoLinhas') || '[]');
+                                            this.atualizarLinhasSelecionadas(linhasSalvas);
+                                            window.addEventListener('segmentacao-category-changed', (event) => {
+                                                this.atualizarLinhasSelecionadas(event.detail?.linhas || []);
+                                            });
                                         }
                                     }">
                                         <button @click="showModal = true"
@@ -457,36 +772,48 @@
                                                         <h2 class="text-2xl font-semibold text-gray-900">Selecionar
                                                             Segmentos</h2>
                                                     </div>
-                                                    <div class="flex justify-between items-center mb-4">
-                                                        <div class="flex items-center gap-4">
+                                                    <div class="mb-4">
+                                                        <div class="text-xs text-gray-500 mb-2">Linha</div>
+                                                        <div class="flex items-center gap-2 flex-wrap mb-3">
                                                             <label class="flex items-center">
-                                                                <input type="checkbox"
-                                                                    id="selecionarTodosSegmentacoesMobile"
-                                                                    class="w-[15px] h-[15px] rounded border-2 border-[#7A7A7A] bg-white checked:bg-white checked:border-[#7A7A7A] focus:ring-0 cursor-pointer relative mr-3"
-                                                                    :checked="selectedSegmentacoes.length ===
-                                                                        segmentacoesDisponiveis.length &&
-                                                                        segmentacoesDisponiveis.length > 0"
-                                                                    @change="toggleSelectAll($event.target.checked)">
-                                                                <span>Selecionar todos</span>
+                                                                <input type="checkbox" :checked="todosLinhaAtivo"
+                                                                    @change="toggleTodosLinha($event.target.checked)"
+                                                                    class="w-[15px] h-[15px] rounded border-2 border-[#7A7A7A] bg-white checked:bg-white checked:border-[#7A7A7A] focus:ring-0 cursor-pointer relative mr-2">
+                                                                <span>Todos</span>
                                                             </label>
-                                                            <span class="text-xs opacity-50">Selecionados: <span
-                                                                    x-text="selectedSegmentacoes.length"></span></span>
-                                                            <span class="text-xs opacity-50">Total: <span
-                                                                    x-text="segmentacoesDisponiveis.length"></span></span>
+                                                            <template x-for="linha in linhasFiltroDisponiveis"
+                                                                :key="linha">
+                                                                <label class="inline-flex items-center">
+                                                                    <input type="checkbox"
+                                                                        :checked="linhasFiltroAtivas.includes(linha)"
+                                                                        @change="toggleLinhaFiltro(linha, $event.target.checked)"
+                                                                        class="w-[15px] h-[15px] rounded border-2 border-[#7A7A7A] bg-white checked:bg-white checked:border-[#7A7A7A] focus:ring-0 cursor-pointer relative mr-2">
+                                                                    <span class="text-base"
+                                                                        x-text="linha.replaceAll('_', ' ')"></span>
+                                                                </label>
+                                                            </template>
                                                         </div>
-                                                        <div class="flex items-center gap-2">
-                                                            <div
-                                                                class="flex items-center border-b border-b-black px-2">
-                                                                <svg xmlns="http://www.w3.org/2000/svg"
-                                                                    class="h-4 w-4 text-black ml-1"
-                                                                    viewBox="0 0 20 20" fill="currentColor">
-                                                                    <path fill-rule="evenodd"
-                                                                        d="M12.9 14.32a8 8 0 111.414-1.414l4.387 4.387a1 1 0 01-1.414 1.414l-4.387-4.387zM8 14a6 6 0 100-12 6 6 0 000 12z"
-                                                                        clip-rule="evenodd" />
-                                                                </svg>
-                                                                <input id="searchSegmentacaoInputMobile"
-                                                                    type="text" placeholder="Buscar"
-                                                                    class="input-estilizado bg-transparent border-0 focus:outline-none focus:ring-0 p-1" />
+                                                        <div class="flex justify-between items-center gap-4">
+                                                            <div class="flex items-center gap-4">
+                                                                <span class="text-xs opacity-50">Selecionados: <span
+                                                                        x-text="totalSelecionadasVisiveis"></span></span>
+                                                                <span class="text-xs opacity-50">Total: <span
+                                                                        x-text="segmentacoesDisponiveis.length"></span></span>
+                                                            </div>
+                                                            <div class="flex items-center gap-2">
+                                                                <div
+                                                                    class="flex items-center border-b border-b-black px-2">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg"
+                                                                        class="h-4 w-4 text-black ml-1"
+                                                                        viewBox="0 0 20 20" fill="currentColor">
+                                                                        <path fill-rule="evenodd"
+                                                                            d="M12.9 14.32a8 8 0 111.414-1.414l4.387 4.387a1 1 0 01-1.414 1.414l-4.387-4.387zM8 14a6 6 0 100-12 6 6 0 000 12z"
+                                                                            clip-rule="evenodd" />
+                                                                    </svg>
+                                                                    <input type="text" x-model="searchSegmentacao"
+                                                                        placeholder="Buscar"
+                                                                        class="input-estilizado bg-transparent border-0 focus:outline-none focus:ring-0 p-1" />
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -515,6 +842,13 @@
                                                                         </td>
                                                                     </tr>
                                                                 </template>
+                                                                <tr x-show="segmentacoesDisponiveis.length === 0">
+                                                                    <td class="py-[10px] px-4 text-sm text-gray-500">
+                                                                        Nenhum segmento disponivel para a
+                                                                        categoria/segmentacao atual.
+                                                                        selecionada.
+                                                                    </td>
+                                                                </tr>
                                                             </tbody>
                                                         </table>
                                                     </div>
@@ -558,7 +892,7 @@
                                 @csrf
                                 <button
                                     class="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors duration-150"
-                                    onclick="localStorage.removeItem('selectedSegmentacoes');">
+                                    onclick="localStorage.removeItem('selectedSegmentacoes'); localStorage.removeItem('selectedSegmentacaoCategoria'); localStorage.removeItem('selectedSegmentacaoLinhas');">
                                     <img src="/images/icones/logout.svg" alt="Logout" class="w-4 h-4 mr-2" />
                                     <span>Sair</span>
                                 </button>
@@ -584,27 +918,74 @@
 @elseif ($type === 'produto')
 @endif
 
+
 <script>
+    function normalizeSegmentacaoCategoria(value) {
+        return (value || '')
+            .toString()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toUpperCase()
+            .replace(/[^A-Z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '');
+    }
+
+    function syncSegmentacaoCategoriaSelecionada(categoria) {
+        const categoriaNormalizada = normalizeSegmentacaoCategoria(categoria);
+
+        try {
+            if (categoriaNormalizada) {
+                localStorage.setItem('selectedSegmentacaoCategoria', categoriaNormalizada);
+            } else {
+                localStorage.removeItem('selectedSegmentacaoCategoria');
+            }
+        } catch (e) {
+            console.error('Erro ao salvar categoria de segmentacao:', e);
+        }
+
+        window.dispatchEvent(new CustomEvent('segmentacao-category-changed', {
+            detail: {
+                categoria: categoriaNormalizada,
+                linhas: getSegmentacaoLinhasSelecionadas()
+            }
+        }));
+    }
+
+    function getSegmentacaoLinhasSelecionadas() {
+        try {
+            const saved = JSON.parse(localStorage.getItem('selectedSegmentacaoLinhas') || '[]');
+            return Array.isArray(saved) ? saved : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function syncSegmentacaoLinhasSelecionadas(linhas) {
+        const linhasNormalizadas = (Array.isArray(linhas) ? linhas : [])
+            .map(normalizeSegmentacaoCategoria)
+            .filter(Boolean);
+
+        try {
+            if (linhasNormalizadas.length > 0) {
+                localStorage.setItem('selectedSegmentacaoLinhas', JSON.stringify(linhasNormalizadas));
+            } else {
+                localStorage.removeItem('selectedSegmentacaoLinhas');
+            }
+        } catch (e) {
+            console.error('Erro ao salvar linhas de segmentacao:', e);
+        }
+
+        window.dispatchEvent(new CustomEvent('segmentacao-category-changed', {
+            detail: {
+                categoria: localStorage.getItem('selectedSegmentacaoCategoria') || '',
+                linhas: linhasNormalizadas
+            }
+        }));
+    }
+
     // Interceptar navegações para páginas de produtos e adicionar segmentações selecionadas
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('DOM fully loaded and parsed');
-        // Filtro de busca para Segmentações no modal
-        const searchInput = document.getElementById('searchSegmentacaoInput');
-        if (searchInput) {
-            searchInput.addEventListener('input', function() {
-                const searchTerm = this.value.toLowerCase();
-                const rows = document.querySelectorAll('.segmentacao-row');
-                rows.forEach(function(row) {
-                    const nameCell = row.querySelector('td');
-                    const text = nameCell ? nameCell.textContent.toLowerCase() : '';
-                    if (text.includes(searchTerm)) {
-                        row.style.display = '';
-                    } else {
-                        row.style.display = 'none';
-                    }
-                });
-            });
-        }
+
         // Função para adicionar parâmetros de segmentação aos links de produtos
         function addSegmentacaoParams(url) {
             const selectedSegmentacoes = localStorage.getItem('selectedSegmentacoes');

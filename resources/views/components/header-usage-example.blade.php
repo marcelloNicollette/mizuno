@@ -6,7 +6,7 @@
     <x-header :user="auth()->user()" />
     
     O componente irá:
-    - Exibir o logo da Olympikus
+    - Exibir o logo da Mizuno
     - Mostrar o nome do usuário logado (se fornecido)
     - Incluir o ícone de usuário
     - Fornecer o botão de logout funcional
@@ -21,6 +21,7 @@
 
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -28,13 +29,15 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
 </head>
+
 <body class="bg-[#F1F1F1] flex flex-col min-h-screen">
     <!-- Usar o componente header -->
     <x-header :user="auth()->user()" />
-    
+
     <!-- Conteúdo da página -->
     <main class="flex-1">
         <h1>Conteúdo da página aqui</h1>
     </main>
 </body>
+
 </html>

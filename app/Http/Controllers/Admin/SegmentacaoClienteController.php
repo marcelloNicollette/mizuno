@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\Segmentacao;
 use App\Models\SegmentacaoCliente;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -15,7 +16,7 @@ class SegmentacaoClienteController extends Controller
      */
     public function index()
     {
-        $segmentacoesCliente = SegmentacaoCliente::with('users')->get();
+        $segmentacoesCliente = SegmentacaoCliente::with(['users', 'segmentoProduto'])->get();
         return view('admin.segmentacao-cliente.index', compact('segmentacoesCliente'));
     }
 
@@ -24,7 +25,8 @@ class SegmentacaoClienteController extends Controller
      */
     public function create()
     {
-        return view('admin.segmentacao-cliente.create');
+        $segmentacoes = Segmentacao::where('active', 1)->orderBy('segmento')->get();
+        return view('admin.segmentacao-cliente.create', compact('segmentacoes'));
     }
 
     /**
@@ -35,7 +37,8 @@ class SegmentacaoClienteController extends Controller
         $validated = $request->validate([
             'nome' => 'required|max:255',
             'descricao' => 'nullable|string',
-            'produtos_segmentos' => 'nullable|string',
+            'produtos_segmentos' => 'nullable|exists:segmentacao,id',
+            'linha' => 'nullable|string|max:255',
             'active' => 'boolean'
         ]);
 
@@ -53,7 +56,7 @@ class SegmentacaoClienteController extends Controller
      */
     public function show(SegmentacaoCliente $segmentacaoCliente)
     {
-        $segmentacaoCliente->load('users');
+        $segmentacaoCliente->load(['users', 'segmentoProduto']);
         return view('admin.segmentacao-cliente.show', compact('segmentacaoCliente'));
     }
 
@@ -62,7 +65,8 @@ class SegmentacaoClienteController extends Controller
      */
     public function edit(SegmentacaoCliente $segmentacaoCliente)
     {
-        return view('admin.segmentacao-cliente.edit', compact('segmentacaoCliente'));
+        $segmentacoes = Segmentacao::where('active', 1)->orderBy('segmento')->get();
+        return view('admin.segmentacao-cliente.edit', compact('segmentacaoCliente', 'segmentacoes'));
     }
 
     /**
@@ -73,7 +77,8 @@ class SegmentacaoClienteController extends Controller
         $validated = $request->validate([
             'nome' => 'required|max:255',
             'descricao' => 'nullable|string',
-            'produtos_segmentos' => 'nullable|string',
+            'produtos_segmentos' => 'nullable|exists:segmentacao,id',
+            'linha' => 'nullable|string|max:255',
             'active' => 'boolean'
         ]);
 

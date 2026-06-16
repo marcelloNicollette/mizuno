@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use App\Models\Segmentacao;
 
 class SegmentacaoCliente extends Model
 {
@@ -18,11 +19,13 @@ class SegmentacaoCliente extends Model
         'descricao',
         'slug',
         'active',
-        'produtos_segmentos'
+        'produtos_segmentos',
+        'linha',
     ];
 
     protected $casts = [
         'active' => 'boolean',
+        'produtos_segmentos' => 'integer',
     ];
 
     /**
@@ -41,6 +44,11 @@ class SegmentacaoCliente extends Model
     {
         return $this->belongsToMany(Color::class, 'color_segmentacao_cliente')
                     ->withTimestamps();
+    }
+
+    public function segmentoProduto()
+    {
+        return $this->belongsTo(Segmentacao::class, 'produtos_segmentos');
     }
 
     /**
