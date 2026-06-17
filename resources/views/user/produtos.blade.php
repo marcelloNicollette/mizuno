@@ -222,9 +222,8 @@
                 margin: 0;
                 font-weight: 400;
                 color: #000000;
-                padding: 5px;
+                padding: 5px 10px 0;
                 font-style: normal;
-                line-height: 20px;
                 /* 90.909% */
             }
 
@@ -259,6 +258,10 @@
             #pedidoRenameBtn {
                 opacity: 0.35;
 
+            }
+
+            #pedidoTitleRow svg {
+                margin-bottom: 7px;
             }
 
             #pedidoTitleRow svg,
@@ -466,7 +469,7 @@
                 position: fixed;
                 right: 28px;
                 bottom: 28px;
-                display: flex;
+                display: none;
                 align-items: center;
                 gap: 4px;
                 z-index: 920;
@@ -1276,7 +1279,7 @@
             #vitrineModalBody {
                 flex: 1;
                 overflow: hidden;
-                padding: 0 20px 16px;
+                padding: 0 0 16px;
                 width: 100%;
                 margin: 0;
                 text-align: center;
@@ -1286,7 +1289,7 @@
             }
 
             #vitrineTitleRow {
-                display: inline-flex;
+                display: flex;
                 align-items: center;
                 justify-content: center;
                 gap: 10px;
@@ -1297,8 +1300,7 @@
                 margin: 0;
                 font-weight: 400;
                 color: #021489;
-                min-width: 450px;
-                padding: 5px;
+                padding: 5px 10px 0;
                 font-family: 'AktivGrotesk', Arial, sans-serif;
                 font-style: normal;
             }
@@ -1309,9 +1311,9 @@
             }
 
             #vitrineGridWrap {
-                width: 100%;
+
                 height: 100%;
-                margin: 0 auto 20px;
+                margin: 0 20px 20px 20px;
                 border: 1px solid #D9D9D9;
                 border-radius: 10px;
 
@@ -2202,9 +2204,10 @@
         {{-- DEPOIS --}}
         <div id="pedidoModal" aria-hidden="true">
             <div id="pedidoModalCard">
-                <div id="pedidoModalHeader">
+                <div id="pedidoModalHeader" style="padding: 1.35rem 1.25rem;">
                     <button id="pedidoModalBackBtn" type="button" aria-label="Voltar"
-                        class="flex items-center bg-[#FFF] border border-black rounded-full px-4 py-2 text-sm hover:bg-gray-200 transition">
+                        class="flex items-center border border-black rounded-full px-4 py-2 text-md bg-white hover:bg-gray-200 transition text-[14px]"
+                        style="padding-left: .75rem;">
                         Voltar
                         <img src="/images/icon-voltar.png" alt="" class="ml-1 w-5 h-5" />
                     </button>
@@ -2316,9 +2319,10 @@
 
         <div id="vitrineModal" aria-hidden="true">
             <div id="vitrineModalCard">
-                <div id="vitrineModalHeader">
+                <div id="vitrineModalHeader" style="padding: 1.35rem 1.25rem;">
                     <button id="vitrineModalBackBtn" type="button" aria-label="Voltar"
-                        class="flex items-center bg-[#FFF] border border-black rounded-full px-4 py-2 text-sm hover:bg-gray-200 transition">
+                        class="flex items-center bg-[#FFF] border border-black rounded-full px-4 py-2 text-sm hover:bg-gray-200 transition"
+                        style="padding-left: .75rem;">
                         Voltar
                         <img src="/images/icon-voltar.png" alt="" class="ml-1 w-5 h-5" />
                     </button>
@@ -2352,6 +2356,7 @@
                             </svg>
                             <h3 class="p-0" id="vitrineTitle" contenteditable="true" spellcheck="false">Vitrine
                             </h3>
+                            <button id="pedidoRenameBtn" type="button">Renomear</button>
                         </div>
                         <div id="vitrineGrid" role="grid" aria-label="Vitrine"></div>
 
@@ -3622,6 +3627,9 @@
                 pedidoOverlayBackBtn.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    if (!confirm('Tem certeza de que deseja sair do pedido, se sair todos os itens serão perdidos?'))
+                        return;
+                    limparPedido();
                     setPedidoMode(false);
                 });
             }
@@ -3657,6 +3665,8 @@
                     e.preventDefault();
                     e.stopPropagation();
                     fecharPedidoModal();
+                    if (!pedidoActionsEnabled) setPedidoActionsEnabled(true);
+                    setPedidoMode(true);
                 });
             }
 

@@ -159,8 +159,8 @@
                 <div class="left-section">
                     <!-- Grid de Imagens para Desktop (2 colunas x 4 linhas) -->
                     <div id="desktopGridWrapper"
-                        class="hidden lg:block bg-white rounded-lg border border-[#CBCBCB] overflow-hidden h-full">
-                        <div class="image-grid-container h-full" id="desktopGrid">
+                        class="hidden lg:block bg-white rounded-lg border border-[#CBCBCB] overflow-hidden">
+                        <div class="image-grid-container" id="desktopGrid">
                             <!-- Imagens serão carregadas dinamicamente via JavaScript -->
                         </div>
                     </div>
@@ -527,7 +527,49 @@
                                     <p class="text-xs text-black opacity-50">Período de Vendas</p>
                                     <p class="text-sm" id="periodo_vendas">{{ $initialPeriodoVendasText }}</p>
                                 </div>
+                                @php
+                                    $formatMesAno = function ($date) {
+                                        if (empty($date) || $date === '-') {
+                                            return null;
+                                        }
 
+                                        try {
+                                            $carbon =
+                                                $date instanceof \Carbon\Carbon ? $date : \Carbon\Carbon::parse($date);
+                                        } catch (\Exception $e) {
+                                            return null;
+                                        }
+
+                                        return $carbon->format('n/Y');
+                                    };
+
+                                    $lancamentosParts = [];
+                                    $lancamentoMkt = $formatMesAno($produto->data_mkt ?? null);
+                                    $lancamentoTrade = $formatMesAno($produto->data_trade ?? null);
+                                    $lancamentoCliente = $formatMesAno($produto->data_cliente ?? null);
+                                    $lancamentoDtc = $formatMesAno($produto->data_dtc ?? null);
+
+                                    if ($lancamentoMkt) {
+                                        $lancamentosParts[] = $lancamentoMkt;
+                                    }
+                                    if ($lancamentoTrade) {
+                                        $lancamentosParts[] = 'Trade: ' . $lancamentoTrade;
+                                    }
+                                    if ($lancamentoCliente) {
+                                        $lancamentosParts[] = 'Cliente: ' . $lancamentoCliente;
+                                    }
+                                    if ($lancamentoDtc) {
+                                        $lancamentosParts[] = 'DTC: ' . $lancamentoDtc;
+                                    }
+
+                                    $lancamentosText = implode(' | ', $lancamentosParts);
+                                @endphp
+                                @if (!empty($lancamentosText))
+                                    <div>
+                                        <p class="text-xs text-black opacity-50">Lançamento</p>
+                                        <p class="text-sm">{{ $lancamentosText }}</p>
+                                    </div>
+                                @endif
                             </div>
                         </div>
 

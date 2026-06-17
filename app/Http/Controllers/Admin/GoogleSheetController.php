@@ -223,7 +223,8 @@ class GoogleSheetController extends Controller
             'testeunderarmour.neooh.com.br' => 'TESTE (UA)',
             'catalogo.mizuno.com.br' => 'MIZUNO',
             'testemizuno.neooh.com.br' => 'TESTE (MZ)',
-            default => 'MIZUNO',
+            'mizuno-catalogo.neooh.com.br' => 'TESTE (MZ)',
+            default => 'TESTE (MZ)',
         };
     }
 
@@ -1392,7 +1393,7 @@ class GoogleSheetController extends Controller
             if (mb_strlen($info2, 'UTF-8') > 255) {
                 $info2 = mb_substr($info2, 0, 252, 'UTF-8') . '...';
             }
-
+            
             Calendario::create([
                 'title' => $product->name,
                 'img' => '',

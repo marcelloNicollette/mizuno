@@ -125,7 +125,8 @@
 
                     <div class="bg-white pb-4 shadow-sm hover:shadow-md transition rounded mb-12">
 
-                        <img src="/images/tenis-1.jpg" alt="Tênis" class="w-full object-contain rounded" />
+                        <img src="/images/tenis-1.jpg" alt="Tênis" class="w-full object-contain rounded"
+                            onerror="this.src='/images/img-padrao-mz.png'" />
                         <div class="px-4">
                             <h2
                                 class="notranslate title font-normal font-fko text-[24px] leading-[26px] py-3 uppercase min-h-[3vh]">
