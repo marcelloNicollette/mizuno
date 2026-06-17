@@ -216,7 +216,7 @@ class GoogleSheetController extends Controller
     private function resolveValueDomain(Request $request): string
     {
         return match($request->getHost()) {
-            '127.0.0.1' => 'TESTE (UA)',
+            '127.0.0.1' => 'TESTE (MZ)',
             'catalogo.olympikus.com.br' => 'OLYMPIKUS',
             'testeolympikus.neooh.com.br' => 'TESTE (OLY)',
             'catalogo.underarmourbr.com.br' => 'UNDER ARMOUR',
@@ -1043,15 +1043,48 @@ class GoogleSheetController extends Controller
      */
     private function parseDate($dateString)
     {
-        if (empty($dateString)) {
+        if ($dateString instanceof Carbon) {
+            return $dateString;
+        }
+
+        $text = trim((string) ($dateString ?? ''));
+        if ($text === '' || $text === '-') {
             return null;
         }
 
+        $normalized = mb_strtolower($text, 'UTF-8');
+        if (preg_match('/^(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)\s*[\/\-]\s*(\d{2}|\d{4})$/u', $normalized, $matches)) {
+            $monthMap = [
+                'jan' => 1,
+                'fev' => 2,
+                'mar' => 3,
+                'abr' => 4,
+                'mai' => 5,
+                'jun' => 6,
+                'jul' => 7,
+                'ago' => 8,
+                'set' => 9,
+                'out' => 10,
+                'nov' => 11,
+                'dez' => 12,
+            ];
+
+            $month = $monthMap[$matches[1]] ?? null;
+            $year = (int) $matches[2];
+            if ($month !== null) {
+                if (strlen($matches[2]) === 2) {
+                    $year = $year >= 70 ? (1900 + $year) : (2000 + $year);
+                }
+
+                return Carbon::create($year, $month, 1, 0, 0, 0);
+            }
+        }
+
         try {
-            return Carbon::createFromFormat('d/m/Y', $dateString);
+            return Carbon::createFromFormat('d/m/Y', $text);
         } catch (\Exception $e) {
             try {
-                return Carbon::parse($dateString);
+                return Carbon::parse($text);
             } catch (\Exception $e) {
                 return null;
             }
@@ -1339,8 +1372,21 @@ class GoogleSheetController extends Controller
         // Remove entrada existente no calendário
         Calendario::where('product_id', $product->id)->delete();
 
-        // Cria nova entrada se houver datas
-        if ($product->flag_calendario && $product->flag_calendario != '-') {
+        $dataMkt = $product->data_mkt ?? null;
+        $dataTrade = $product->data_trade ?? null;
+        $dataCliente = $product->data_cliente ?? null;
+        $dataDtc = $product->data_dtc ?? null;
+
+        $hasAnyDate = !empty($dataMkt) || !empty($dataTrade) || !empty($dataCliente) || !empty($dataDtc);
+        if ($hasAnyDate) {
+            $baseDate = $dataMkt ?: ($dataTrade ?: ($dataCliente ?: $dataDtc));
+            $baseCarbon = null;
+            try {
+                $baseCarbon = $baseDate instanceof Carbon ? $baseDate : Carbon::parse($baseDate);
+            } catch (\Exception $e) {
+                $baseCarbon = null;
+            }
+
             // Trunca a descrição para evitar erro de dados muito longos
             $info2 = (string) ($product->description ?? '');
             if (mb_strlen($info2, 'UTF-8') > 255) {
@@ -1350,15 +1396,15 @@ class GoogleSheetController extends Controller
             Calendario::create([
                 'title' => $product->name,
                 'img' => '',
-                'ano' => $product->data_mkt ? $product->data_mkt->year : date('Y'),
-                'mes' => $product->data_mkt ? $product->data_mkt->month : date('n'),
+                'ano' => $baseCarbon ? $baseCarbon->year : date('Y'),
+                'mes' => $baseCarbon ? $baseCarbon->month : date('n'),
                 'info_1' => 'Lançamento',
                 'info_2' => $info2,
-                'data' => $product->data_mkt,
-                'data_mkt' => $product->data_mkt,
-                'data_trade' => $product->data_trade,
-                'data_cliente' => $product->data_cliente,
-                'data_dtc' => $product->data_dtc,
+                'data' => $dataMkt,
+                'data_mkt' => $dataMkt,
+                'data_trade' => $dataTrade,
+                'data_cliente' => $dataCliente,
+                'data_dtc' => $dataDtc,
                 'product_id' => $product->id
             ]);
         }
