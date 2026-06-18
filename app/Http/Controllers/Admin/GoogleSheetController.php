@@ -303,6 +303,10 @@ class GoogleSheetController extends Controller
                         // Tenta obter numeração da cor a partir de possíveis cabeçalhos
                         'numeracao' => $this->extractColorNumeracao($productData),
                         'cliente_segmento' => $productData['CLIENTE_SEGMENTO'] ?? '',
+                        'data_mkt' => $productData['LANÇAMENTO'] ?? '',
+                        'data_trade' => $productData['LANÇAMENTO_TRADE'] ?? '',
+                        'data_cliente' => $productData['LANÇAMENTO_CLIENTE'] ?? '',
+                        'data_dtc' => $productData['LANÇAMENTO_DTC'] ?? '',
                     ];
                 }
 
@@ -639,11 +643,7 @@ class GoogleSheetController extends Controller
             'genero' => $data['GENERO'] ?? 'UNISSEX',
             'active' => true,
             'technologies' => json_encode($tecnologia),
-            'flag_calendario' => !empty($data['LANÇAMENTO']) || !empty($data['LANÇAMENTO_DTC']) || !empty($data['LANÇAMENTO_TRADE']) || !empty($data['LANÇAMENTO_CLIENTE']),
-            'data_mkt' => $this->parseDate($data['LANÇAMENTO'] ?? ''),
-            'data_trade' => $this->parseDate($data['LANÇAMENTO_TRADE'] ?? ''),
-            'data_cliente' => $this->parseDate($data['LANÇAMENTO_CLIENTE'] ?? ''),
-            'data_dtc' => $this->parseDate($data['LANÇAMENTO_DTC'] ?? ''),
+            'flag_calendario' => $this->hasLaunchDatesForAnyColor($colors, $data),
         ];
         //dd($productData);
         // Cria ou atualiza o produto
@@ -1102,7 +1102,11 @@ class GoogleSheetController extends Controller
         if (!empty($data['COR_COD'])) {
             $colors[] = [
                 'code' => $data['COR_COD'],
-                'description' => $data['COR_DESCRIÇÃO'] ?? $data['COR_COD']
+                'description' => $data['COR_DESCRIÇÃO'] ?? $data['COR_COD'],
+                'data_mkt' => $data['LANÇAMENTO'] ?? '',
+                'data_trade' => $data['LANÇAMENTO_TRADE'] ?? '',
+                'data_cliente' => $data['LANÇAMENTO_CLIENTE'] ?? '',
+                'data_dtc' => $data['LANÇAMENTO_DTC'] ?? '',
             ];
         }
 
@@ -1233,6 +1237,10 @@ class GoogleSheetController extends Controller
                 'collection_id' => $collection?->id,
                 'flag_product_id' => $flag ?? null,
                 'numeracao_id' => $corData['numeracao_id'] ?? null,
+                'data_mkt' => $this->parseDate($corData['data_mkt'] ?? null),
+                'data_trade' => $this->parseDate($corData['data_trade'] ?? null),
+                'data_cliente' => $this->parseDate($corData['data_cliente'] ?? null),
+                'data_dtc' => $this->parseDate($corData['data_dtc'] ?? null),
                 'active' => true
             ]);
             $return_color = Color::updateOrCreate(
@@ -1247,6 +1255,10 @@ class GoogleSheetController extends Controller
                 //'collection_id' => $collection?->id,
                 'flag_product_id' => $flag ?? null,
                 'numeracao_id' => $corData['numeracao_id'] ?? null,
+                'data_mkt' => $this->parseDate($corData['data_mkt'] ?? null),
+                'data_trade' => $this->parseDate($corData['data_trade'] ?? null),
+                'data_cliente' => $this->parseDate($corData['data_cliente'] ?? null),
+                'data_dtc' => $this->parseDate($corData['data_dtc'] ?? null),
                 'active' => true
             ]);
              //dd($return_color);
@@ -1373,14 +1385,15 @@ class GoogleSheetController extends Controller
         // Remove entrada existente no calendário
         Calendario::where('product_id', $product->id)->delete();
 
-        $dataMkt = $product->data_mkt ?? null;
-        $dataTrade = $product->data_trade ?? null;
-        $dataCliente = $product->data_cliente ?? null;
-        $dataDtc = $product->data_dtc ?? null;
+        $launchDates = $this->resolveCalendarLaunchDatesFromColors($product);
+        $dataMkt = $launchDates['data_mkt'];
+        $dataTrade = $launchDates['data_trade'];
+        $dataCliente = $launchDates['data_cliente'];
+        $dataDtc = $launchDates['data_dtc'];
 
-        $hasAnyDate = !empty($dataMkt) || !empty($dataTrade) || !empty($dataCliente) || !empty($dataDtc);
+        $hasAnyDate = $launchDates['has_dates'];
         if ($hasAnyDate) {
-            $baseDate = $dataMkt ?: ($dataTrade ?: ($dataCliente ?: $dataDtc));
+            $baseDate = $launchDates['base_date'];
             $baseCarbon = null;
             try {
                 $baseCarbon = $baseDate instanceof Carbon ? $baseDate : Carbon::parse($baseDate);
@@ -1409,6 +1422,39 @@ class GoogleSheetController extends Controller
                 'product_id' => $product->id
             ]);
         }
+    }
+
+    private function resolveCalendarLaunchDatesFromColors($product): array
+    {
+        $product->loadMissing('colors');
+
+        $dates = [
+            'data_mkt' => null,
+            'data_trade' => null,
+            'data_cliente' => null,
+            'data_dtc' => null,
+        ];
+
+        foreach ($product->colors as $color) {
+            foreach (array_keys($dates) as $field) {
+                $value = $color->{$field} ?? null;
+                if (!$value) {
+                    continue;
+                }
+
+                $carbon = $value instanceof Carbon ? $value : Carbon::parse($value);
+                if (!$dates[$field] || $carbon->lt($dates[$field])) {
+                    $dates[$field] = $carbon->copy();
+                }
+            }
+        }
+
+        $baseDate = $dates['data_mkt'] ?: ($dates['data_trade'] ?: ($dates['data_cliente'] ?: $dates['data_dtc']));
+
+        return array_merge($dates, [
+            'base_date' => $baseDate,
+            'has_dates' => (bool) $baseDate,
+        ]);
     }
 
     /**
@@ -1677,10 +1723,6 @@ class GoogleSheetController extends Controller
             'SUBCATEGORIA' => (string) ($product->subcategory?->faixa ?? ''),
             'PRODUTOS_SEGMENTO' => (string) ($product->category?->segmentacao?->segmento ?? ''),
             'TECNOLOGIAS' => $this->getTecnologiasAsString($product),
-            'LANÇAMENTO' => $this->formatSheetDate($product->data_mkt),
-            'LANÇAMENTO_TRADE' => $this->formatSheetDate($product->data_trade),
-            'LANÇAMENTO_CLIENTE' => $this->formatSheetDate($product->data_cliente),
-            'LANÇAMENTO_DTC' => $this->formatSheetDate($product->data_dtc),
             'LINK 1' => (string) ($link1->link_url ?? ''),
             'LINK 1_DESCRICAO' => (string) ($link1->link_title ?? ''),
             'LINK 2' => (string) ($link2->link_url ?? ''),
@@ -1753,9 +1795,32 @@ class GoogleSheetController extends Controller
             'GENERO' => (string) ($color?->genero ?? ''),
             'CLIENTE_SEGMENTO' => (string) $segmentacoesCliente,
             'NUMERAÇÃO' => (string) $numeracao,
+            'LANÇAMENTO' => $this->formatSheetDate($color?->data_mkt ?? null),
+            'LANÇAMENTO_TRADE' => $this->formatSheetDate($color?->data_trade ?? null),
+            'LANÇAMENTO_CLIENTE' => $this->formatSheetDate($color?->data_cliente ?? null),
+            'LANÇAMENTO_DTC' => $this->formatSheetDate($color?->data_dtc ?? null),
         ];
 
         $this->applyValuesToRow($rowValues, $headerIndex, $values);
+    }
+
+    private function hasLaunchDatesForAnyColor(array $colors, array $data): bool
+    {
+        foreach (['LANÇAMENTO', 'LANÇAMENTO_TRADE', 'LANÇAMENTO_CLIENTE', 'LANÇAMENTO_DTC'] as $field) {
+            if (!empty($data[$field])) {
+                return true;
+            }
+        }
+
+        foreach ($colors as $color) {
+            foreach (['data_mkt', 'data_trade', 'data_cliente', 'data_dtc'] as $field) {
+                if (!empty($color[$field])) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private function getProductIdsToReverseSync(?Carbon $since): array

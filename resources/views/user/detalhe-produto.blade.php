@@ -528,6 +528,8 @@
                                     <p class="text-sm" id="periodo_vendas">{{ $initialPeriodoVendasText }}</p>
                                 </div>
                                 @php
+                                    $initialColor = $produto->colors->first();
+
                                     $formatMesAno = function ($date) {
                                         if (empty($date) || $date === '-') {
                                             return null;
@@ -540,34 +542,19 @@
                                             return null;
                                         }
 
-                                        return $carbon->format('n/Y');
+                                        return $carbon->format('m/Y');
                                     };
 
                                     $lancamentosParts = [];
-                                    $lancamentoMkt = $formatMesAno($produto->data_mkt ?? null);
-                                    $lancamentoTrade = $formatMesAno($produto->data_trade ?? null);
-                                    $lancamentoCliente = $formatMesAno($produto->data_cliente ?? null);
-                                    $lancamentoDtc = $formatMesAno($produto->data_dtc ?? null);
+                                    $lancamentoMkt = $formatMesAno($initialColor?->data_mkt ?? null);
 
-                                    if ($lancamentoMkt) {
-                                        $lancamentosParts[] = $lancamentoMkt;
-                                    }
-                                    if ($lancamentoTrade) {
-                                        $lancamentosParts[] = 'Trade: ' . $lancamentoTrade;
-                                    }
-                                    if ($lancamentoCliente) {
-                                        $lancamentosParts[] = 'Cliente: ' . $lancamentoCliente;
-                                    }
-                                    if ($lancamentoDtc) {
-                                        $lancamentosParts[] = 'DTC: ' . $lancamentoDtc;
-                                    }
+                                    $lancamentosText = $lancamentoMkt;
 
-                                    $lancamentosText = implode(' | ', $lancamentosParts);
                                 @endphp
-                                @if (!empty($lancamentosText))
+                                @if ($lancamentosText)
                                     <div>
                                         <p class="text-xs text-black opacity-50">Lançamento</p>
-                                        <p class="text-sm">{{ $lancamentosText }}</p>
+                                        <p class="text-sm" id="lancamentos">{{ $lancamentosText ?: '-' }}</p>
                                     </div>
                                 @endif
                             </div>
@@ -1328,6 +1315,7 @@
                             // Atualizar numeração conforme a cor selecionada
                             updateNumeracaoByColorCode(selectedColorCode);
                             updatePeriodoVendasByColorCode(selectedColorCode);
+                            updateLancamentosByColorCode(selectedColorCode);
 
                             // Verificar status da wishlist (pode ser assíncrono sem afetar UX)
                             checkWishlistStatus();
@@ -1449,6 +1437,10 @@
                         @endif ,
                         badges: @json($badgesPayload),
                         periodo_vendas: @json($color->periodo_vendas ?? []),
+                        data_mkt: "{{ $color->data_mkt?->format('Y-m-d') ?? '' }}",
+                        data_trade: "{{ $color->data_trade?->format('Y-m-d') ?? '' }}",
+                        data_cliente: "{{ $color->data_cliente?->format('Y-m-d') ?? '' }}",
+                        data_dtc: "{{ $color->data_dtc?->format('Y-m-d') ?? '' }}",
                         segmentacaoIds: @json($color->segmentacoesCliente->pluck('id')->toArray())
                     },
                 @endforeach
@@ -1570,6 +1562,44 @@
                 }
             }
 
+            function formatLancamentoMesAno(dateString) {
+                if (!dateString || typeof dateString !== 'string') return null;
+
+                const parts = dateString.split('-');
+                if (parts.length < 2) return null;
+
+                const month = parts[1];
+                const year = parts[0];
+
+                if (!month || !year) return null;
+
+                return `${month}/${year}`;
+            }
+
+            function formatLancamentos(colorData) {
+                if (!colorData) return '';
+
+                const parts = [];
+                const dataMkt = formatLancamentoMesAno(colorData.data_mkt);
+
+                if (dataMkt) parts.push(dataMkt);
+
+                return parts.join(' | ');
+            }
+
+            function updateLancamentosByColorCode(colorCode) {
+                try {
+                    const cor = coresData.find(c => c.color_code === colorCode);
+                    const lancamentosEl = document.getElementById('lancamentos');
+                    if (lancamentosEl) {
+                        const text = formatLancamentos(cor);
+                        lancamentosEl.textContent = text || '-';
+                    }
+                } catch (e) {
+                    console.error('Erro atualizando lançamentos da cor:', e);
+                }
+            }
+
 
 
             // Função para filtrar cores baseado nas segmentações selecionadas
@@ -1646,6 +1676,7 @@
                     carregarImagensProdutoOtimizado(coresFiltradas[0].color_code);
                     updateNumeracaoByColorCode(coresFiltradas[0].color_code);
                     updatePeriodoVendasByColorCode(coresFiltradas[0].color_code);
+                    updateLancamentosByColorCode(coresFiltradas[0].color_code);
                 }
             }
 
@@ -1662,6 +1693,7 @@
                         carregarImagensProdutoOtimizado(coresFiltradas[0].color_code);
                         updateNumeracaoByColorCode(coresFiltradas[0].color_code);
                         updatePeriodoVendasByColorCode(coresFiltradas[0].color_code);
+                        updateLancamentosByColorCode(coresFiltradas[0].color_code);
                     }
                 });
             }

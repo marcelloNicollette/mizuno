@@ -152,6 +152,10 @@ class Product extends Model
                 'flag_product_id' => $primaryFlagId,
                 'numeracao_id' => $colorData['numeracao_ids'][$index] ?? null,
                 'periodo_vendas' => $periodoVendas,
+                'data_mkt' => $this->normalizeColorLaunchDate($colorData['data_mkt'][$index] ?? null),
+                'data_trade' => $this->normalizeColorLaunchDate($colorData['data_trade'][$index] ?? null),
+                'data_cliente' => $this->normalizeColorLaunchDate($colorData['data_cliente'][$index] ?? null),
+                'data_dtc' => $this->normalizeColorLaunchDate($colorData['data_dtc'][$index] ?? null),
                 'is_new' => false,
                 'active' => true,
             ]);
@@ -238,6 +242,10 @@ class Product extends Model
                 'flag_product_id' => $primaryFlagId,
                 'numeracao_id' => $colorData['numeracao_ids'][$index] ?? null,
                 'periodo_vendas' => $periodoVendas,
+                'data_mkt' => $this->normalizeColorLaunchDate($colorData['data_mkt'][$index] ?? null),
+                'data_trade' => $this->normalizeColorLaunchDate($colorData['data_trade'][$index] ?? null),
+                'data_cliente' => $this->normalizeColorLaunchDate($colorData['data_cliente'][$index] ?? null),
+                'data_dtc' => $this->normalizeColorLaunchDate($colorData['data_dtc'][$index] ?? null),
                 'is_new' => false,
                 'active' => true,
             ]);
@@ -337,5 +345,16 @@ class Product extends Model
         }
 
         $this->numeracoes()->sync($numeracoesToSync);
+    }
+
+    private function normalizeColorLaunchDate($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $text = trim((string) $value);
+
+        return $text === '' ? null : $text;
     }
 }

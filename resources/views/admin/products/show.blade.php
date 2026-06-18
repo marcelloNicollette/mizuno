@@ -47,34 +47,43 @@
                     </div>
 
                     <!-- Informações do Calendário -->
-                    @if ($product->flag_calendario)
+                    @if ($product->colors->whereNotNull('data_mkt')->count() || $product->colors->whereNotNull('data_trade')->count() || $product->colors->whereNotNull('data_cliente')->count() || $product->colors->whereNotNull('data_dtc')->count())
                         <div class="border-t pt-6">
-                            <h3 class="text-lg font-medium text-gray-900 mb-4">Datas do Calendário</h3>
-                            <div class="grid grid-cols-2 gap-4">
-                                @if ($product->data_mkt)
-                                    <div>
-                                        <h4 class="text-sm font-medium text-gray-500">Data MKT</h4>
-                                        <p class="mt-1 text-gray-900">{{ $product->data_mkt->format('d/m/Y') }}</p>
-                                    </div>
-                                @endif
-                                @if ($product->data_trade)
-                                    <div>
-                                        <h4 class="text-sm font-medium text-gray-500">Data Trade</h4>
-                                        <p class="mt-1 text-gray-900">{{ $product->data_trade->format('d/m/Y') }}</p>
-                                    </div>
-                                @endif
-                                @if ($product->data_cliente)
-                                    <div>
-                                        <h4 class="text-sm font-medium text-gray-500">Data Cliente</h4>
-                                        <p class="mt-1 text-gray-900">{{ $product->data_cliente->format('d/m/Y') }}</p>
-                                    </div>
-                                @endif
-                                @if ($product->data_dtc)
-                                    <div>
-                                        <h4 class="text-sm font-medium text-gray-500">Data DTC</h4>
-                                        <p class="mt-1 text-gray-900">{{ $product->data_dtc->format('d/m/Y') }}</p>
-                                    </div>
-                                @endif
+                            <h3 class="text-lg font-medium text-gray-900 mb-4">Datas do Calendário por Cor</h3>
+                            <div class="space-y-4">
+                                @foreach ($product->colors as $color)
+                                    @if ($color->data_mkt || $color->data_trade || $color->data_cliente || $color->data_dtc)
+                                        <div class="border rounded-lg p-4">
+                                            <h4 class="text-sm font-semibold text-gray-900">{{ $color->color_name ?: $color->color_code }}</h4>
+                                            <div class="grid grid-cols-2 gap-4 mt-3">
+                                                @if ($color->data_mkt)
+                                                    <div>
+                                                        <p class="text-sm font-medium text-gray-500">Data MKT</p>
+                                                        <p class="mt-1 text-gray-900">{{ $color->data_mkt->format('d/m/Y') }}</p>
+                                                    </div>
+                                                @endif
+                                                @if ($color->data_trade)
+                                                    <div>
+                                                        <p class="text-sm font-medium text-gray-500">Data Trade</p>
+                                                        <p class="mt-1 text-gray-900">{{ $color->data_trade->format('d/m/Y') }}</p>
+                                                    </div>
+                                                @endif
+                                                @if ($color->data_cliente)
+                                                    <div>
+                                                        <p class="text-sm font-medium text-gray-500">Data Cliente</p>
+                                                        <p class="mt-1 text-gray-900">{{ $color->data_cliente->format('d/m/Y') }}</p>
+                                                    </div>
+                                                @endif
+                                                @if ($color->data_dtc)
+                                                    <div>
+                                                        <p class="text-sm font-medium text-gray-500">Data DTC</p>
+                                                        <p class="mt-1 text-gray-900">{{ $color->data_dtc->format('d/m/Y') }}</p>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    @endif
+                                @endforeach
                             </div>
                         </div>
                     @endif

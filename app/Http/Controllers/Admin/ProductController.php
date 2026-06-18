@@ -108,11 +108,15 @@ class ProductController extends Controller
             'color_periodo_vendas' => 'nullable|array',
             'color_periodo_vendas.*' => 'nullable|array',
             'color_periodo_vendas.*.*' => 'integer|min:1|max:12',
+            'color_data_mkt' => 'nullable|array',
+            'color_data_mkt.*' => 'nullable|date',
+            'color_data_trade' => 'nullable|array',
+            'color_data_trade.*' => 'nullable|date',
+            'color_data_cliente' => 'nullable|array',
+            'color_data_cliente.*' => 'nullable|date',
+            'color_data_dtc' => 'nullable|array',
+            'color_data_dtc.*' => 'nullable|date',
             'flag_calendario' => 'nullable|boolean',
-            'data_mkt' => 'nullable|date',
-            'data_trade' => 'nullable|date',
-            'data_cliente' => 'nullable|date',
-            'data_dtc' => 'nullable|date',
             'active' => 'boolean',
             'order' => 'nullable|integer|min:1'
         ]);
@@ -162,6 +166,10 @@ class ProductController extends Controller
                 'shoe_grid_ids' => $request->input('color_shoe_grid_ids', []),
                 'segmentacoes_cliente' => $request->input('color_segmentacoes_cliente', []),
                 'periodo_vendas' => $request->input('color_periodo_vendas', []),
+                'data_mkt' => $request->input('color_data_mkt', []),
+                'data_trade' => $request->input('color_data_trade', []),
+                'data_cliente' => $request->input('color_data_cliente', []),
+                'data_dtc' => $request->input('color_data_dtc', []),
             ]);
         }
 
@@ -245,6 +253,10 @@ class ProductController extends Controller
                 'color_shoe_grid_ids' => $c->shoeGrids->pluck('id')->toArray(),
                 'segmentacoes_cliente' => $c->segmentacoesCliente->pluck('id')->toArray(),
                 'color_periodo_vendas' => $c->periodo_vendas ?? [],
+                'color_data_mkt' => $c->data_mkt?->format('Y-m-d') ?? '',
+                'color_data_trade' => $c->data_trade?->format('Y-m-d') ?? '',
+                'color_data_cliente' => $c->data_cliente?->format('Y-m-d') ?? '',
+                'color_data_dtc' => $c->data_dtc?->format('Y-m-d') ?? '',
             ];
         })->values()->all();
 
@@ -260,6 +272,10 @@ class ProductController extends Controller
                 'color_shoe_grid_ids' => [],
                 'segmentacoes_cliente' => [],
                 'color_periodo_vendas' => [],
+                'color_data_mkt' => '',
+                'color_data_trade' => '',
+                'color_data_cliente' => '',
+                'color_data_dtc' => '',
             ]];
         }
 
@@ -347,11 +363,15 @@ class ProductController extends Controller
             'color_periodo_vendas' => 'nullable|array',
             'color_periodo_vendas.*' => 'nullable|array',
             'color_periodo_vendas.*.*' => 'integer|min:1|max:12',
+            'color_data_mkt' => 'nullable|array',
+            'color_data_mkt.*' => 'nullable|date',
+            'color_data_trade' => 'nullable|array',
+            'color_data_trade.*' => 'nullable|date',
+            'color_data_cliente' => 'nullable|array',
+            'color_data_cliente.*' => 'nullable|date',
+            'color_data_dtc' => 'nullable|array',
+            'color_data_dtc.*' => 'nullable|date',
             'flag_calendario' => 'nullable|boolean',
-            'data_mkt' => 'nullable|date',
-            'data_trade' => 'nullable|date',
-            'data_cliente' => 'nullable|date',
-            'data_dtc' => 'nullable|date',
             'active' => 'boolean',
             'order' => 'nullable|integer|min:1'
         ]);
@@ -404,6 +424,10 @@ class ProductController extends Controller
                 'shoe_grid_ids' => $request->input('color_shoe_grid_ids', []),
                 'segmentacoes_cliente' => $request->input('color_segmentacoes_cliente', []),
                 'periodo_vendas' => $request->input('color_periodo_vendas', []),
+                'data_mkt' => $request->input('color_data_mkt', []),
+                'data_trade' => $request->input('color_data_trade', []),
+                'data_cliente' => $request->input('color_data_cliente', []),
+                'data_dtc' => $request->input('color_data_dtc', []),
             ]);
         }
 
@@ -467,48 +491,63 @@ class ProductController extends Controller
      */
     private function syncCalendario(Product $product)
     {
-        // Se o produto tem flag_calendario ativo e pelo menos uma data preenchida
-        if ($product->flag_calendario && ($product->data_mkt || $product->data_trade || $product->data_cliente || $product->data_dtc)) {
-            // Busca ou cria um registro de calendário para este produto
-            $calendario = Calendario::where('product_id', $product->id)->first();
+        $launchDates = $this->resolveCalendarLaunchDatesFromColors($product);
 
-            if (!$calendario) {
-                $calendario = new Calendario();
-                $calendario->product_id = $product->id;
-            }
-
-            // Carrega a categoria do produto se não estiver carregada
-            if (!$product->relationLoaded('category')) {
-                $product->load('category');
-            }
-
-            // Atualiza os dados do calendário com base no produto
-            $calendario->title = $product->name;
-            $calendario->ano = now()->year; // Ano atual como padrão
-            $calendario->mes = now()->month; // Mês atual como padrão
-            $calendario->info_1 = $product->category->name;
-            $calendario->info_2 = $product->code;
-
-            // Define a data principal como a primeira data disponível
-            $calendario->data = $product->data_cliente ?: ($product->data_mkt ?: ($product->data_trade ?: $product->data_dtc));
-
-            // Copia as datas específicas
-            $calendario->data_mkt = $product->data_mkt;
-            $calendario->data_trade = $product->data_trade;
-            $calendario->data_cliente = $product->data_cliente;
-            $calendario->data_dtc = $product->data_dtc;
-
-            // Ajusta ano e mês baseado na data principal
-            if ($calendario->data) {
-                $calendario->ano = $calendario->data->year;
-                $calendario->mes = $calendario->data->month;
-            }
-
-            $calendario->save();
-        } else {
-            // Se o flag_calendario está desativo ou não há datas, remove o registro do calendário
+        if (!$product->flag_calendario || !$launchDates['has_dates']) {
             Calendario::where('product_id', $product->id)->delete();
+            return;
         }
+
+        $calendario = Calendario::firstOrNew(['product_id' => $product->id]);
+
+        if (!$product->relationLoaded('category')) {
+            $product->load('category');
+        }
+
+        $calendario->title = $product->name;
+        $calendario->ano = $launchDates['base_date']?->year ?? now()->year;
+        $calendario->mes = $launchDates['base_date']?->month ?? now()->month;
+        $calendario->info_1 = $product->category->name ?? '';
+        $calendario->info_2 = $product->code;
+        $calendario->data = $launchDates['base_date'];
+        $calendario->data_mkt = $launchDates['data_mkt'];
+        $calendario->data_trade = $launchDates['data_trade'];
+        $calendario->data_cliente = $launchDates['data_cliente'];
+        $calendario->data_dtc = $launchDates['data_dtc'];
+        $calendario->save();
+    }
+
+    private function resolveCalendarLaunchDatesFromColors(Product $product): array
+    {
+        $product->loadMissing('colors');
+
+        $dates = [
+            'data_mkt' => null,
+            'data_trade' => null,
+            'data_cliente' => null,
+            'data_dtc' => null,
+        ];
+
+        foreach ($product->colors as $color) {
+            foreach (array_keys($dates) as $field) {
+                $value = $color->{$field} ?? null;
+                if (!$value) {
+                    continue;
+                }
+
+                $carbon = $value instanceof Carbon ? $value : Carbon::parse($value);
+                if (!$dates[$field] || $carbon->lt($dates[$field])) {
+                    $dates[$field] = $carbon->copy();
+                }
+            }
+        }
+
+        $baseDate = $dates['data_mkt'] ?: ($dates['data_trade'] ?: ($dates['data_cliente'] ?: $dates['data_dtc']));
+
+        return array_merge($dates, [
+            'base_date' => $baseDate,
+            'has_dates' => (bool) $baseDate,
+        ]);
     }
 
     /**
