@@ -140,10 +140,10 @@
                                     <p class="text-black opacity-50 text-xs title-caract-1">Data</p>
                                     <p class="data text-black text-xs desc-caract-1"></p>
                                 </div>
-                                <div class="pb-2" id="data_mkt">
+                                <!--<div class="pb-2" id="data_mkt">
                                     <p class="text-black opacity-50 text-xs title-caract-1">Data Mkt</p>
                                     <p class="dt_mkt text-black text-xs desc-caract-1"></p>
-                                </div>
+                                </div>-->
                                 <div class="pb-2" id="data_trade">
                                     <p class="text-black opacity-50 text-xs title-caract-1">Data Trade</p>
                                     <p class="dt_trade text-black text-xs desc-caract-1"></p>
@@ -258,11 +258,11 @@
                     } else {
                         clone.querySelector("#data").style.display = 'none';
                     }
-                    if (produto.data_mkt != '') {
+                    /*if (produto.data_mkt != '') {
                         clone.querySelector(".dt_mkt").textContent = produto.data_mkt;
                     } else {
                         clone.querySelector("#data_mkt").style.display = 'none';
-                    }
+                    }*/
                     if (produto.data_trade != '') {
                         clone.querySelector(".dt_trade").textContent = produto.data_trade;
                     } else {

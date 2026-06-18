@@ -303,6 +303,8 @@ class GoogleSheetController extends Controller
                         // Tenta obter numeração da cor a partir de possíveis cabeçalhos
                         'numeracao' => $this->extractColorNumeracao($productData),
                         'cliente_segmento' => $productData['CLIENTE_SEGMENTO'] ?? '',
+                        'grades' => $productData['GRADES'] ?? '',
+                        'periodo_venda' => $productData['PERIODO_VENDA'] ?? '',
                         'data_mkt' => $productData['LANÇAMENTO'] ?? '',
                         'data_trade' => $productData['LANÇAMENTO_TRADE'] ?? '',
                         'data_cliente' => $productData['LANÇAMENTO_CLIENTE'] ?? '',

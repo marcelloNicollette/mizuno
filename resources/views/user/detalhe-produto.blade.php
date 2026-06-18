@@ -422,12 +422,13 @@
                                     <p class="text-sm" id="numeracao">{{ $initialNumeracao }}</p>
                                 </div>
 
-                                <div>
+
+                                <!--<div>
                                     <button id="openSizeTableModal"
                                         class="text-xs text-black opacity-50 hover:opacity-100 hover:underline">
                                         Tabela de Medidas
                                     </button>
-                                </div>
+                                </div>-->
 
                                 @php
                                     $formatBra = function ($bra) {
@@ -471,14 +472,14 @@
                                         ];
                                     }
                                 @endphp
-                                <div>
+                                <!--<div>
                                     <p class="text-xs text-black opacity-50">Grade</p>
                                     <div id="shoe_grids_container">
                                         @if (count($initialShoeGridRows) > 0)
-                                            <table class="border border-gray-300">
+<table class="border border-gray-300">
                                                 <tbody>
                                                     @foreach ($initialShoeGridRows as $row)
-                                                        <tr>
+<tr>
                                                             <td
                                                                 class="text-xs border border-[#7F7F7F] px-2 py-1 text-[#7F7F7F]">
                                                                 {{ $row['code'] }}</td>
@@ -487,12 +488,12 @@
                                                             <td class="text-xs border border-[#7F7F7F] px-2 py-1">
                                                                 {{ $row['quantities'] }}</td>
                                                         </tr>
-                                                    @endforeach
+@endforeach
                                                 </tbody>
                                             </table>
-                                        @else
-                                            <p class="text-sm">-</p>
-                                        @endif
+@else
+<p class="text-sm">-</p>
+@endif
                                     </div>
                                     <p class="text-xs text-black opacity-50 mt-1">*Somente para a cor selecionada.</p>
                                 </div>
@@ -527,9 +528,9 @@
                                     <p class="text-xs text-black opacity-50">Período de Vendas</p>
                                     <p class="text-sm" id="periodo_vendas">{{ $initialPeriodoVendasText }}</p>
                                 </div>
+---->
                                 @php
                                     $initialColor = $produto->colors->first();
-
                                     $formatMesAno = function ($date) {
                                         if (empty($date) || $date === '-') {
                                             return null;
@@ -549,12 +550,11 @@
                                     $lancamentoMkt = $formatMesAno($initialColor?->data_mkt ?? null);
 
                                     $lancamentosText = $lancamentoMkt;
-
                                 @endphp
-                                @if ($lancamentosText)
+                                @if (!empty($lancamentosText))
                                     <div>
                                         <p class="text-xs text-black opacity-50">Lançamento</p>
-                                        <p class="text-sm" id="lancamentos">{{ $lancamentosText ?: '-' }}</p>
+                                        <p class="text-sm">{{ $lancamentosText }}</p>
                                     </div>
                                 @endif
                             </div>

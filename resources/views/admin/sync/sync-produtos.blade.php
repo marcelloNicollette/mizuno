@@ -234,14 +234,14 @@
                 </button>
             </form>
 
-            <form action="{{ route('admin.sync-sheet-reverse') }}" method="get" class="sync-form"
-                style="margin-top: 12px;">
-                <input type="hidden" name="preview" value="0">
-                <button type="submit" class="btn-sync-2"
-                    onclick="this.disabled=true; this.innerHTML='⬆️ Enviando...'; this.form.submit();">
-                    ⬆️ Sincronizar Banco → Planilha
-                </button>
-            </form>
+            <!--<form action="{{ route('admin.sync-sheet-reverse') }}" method="get" class="sync-form"
+                    style="margin-top: 12px;">
+                    <input type="hidden" name="preview" value="0">
+                    <button type="submit" class="btn-sync-2"
+                        onclick="this.disabled=true; this.innerHTML='⬆️ Enviando...'; this.form.submit();">
+                        ⬆️ Sincronizar Banco → Planilha
+                    </button>
+                </form>-->
         </div>
 
 
