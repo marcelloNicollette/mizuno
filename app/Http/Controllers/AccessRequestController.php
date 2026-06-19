@@ -63,8 +63,12 @@ class AccessRequestController extends Controller
     /**
      * Aprovar uma solicitação e converter em usuário.
      */
-    public function approve(UserAccess $user_access)
+    public function approve(Request $request, UserAccess $user_access)
     {
+        $validated = $request->validate([
+            'classification' => ['required', 'string', 'in:admin-user,representante,interno,fornecedor,convidado,cliente'],
+        ]);
+
         // Evitar duplicar usuários com o mesmo e-mail
         if (User::where('email', $user_access->email)->exists()) {
             return redirect()->route('admin.access.index')
@@ -81,6 +85,7 @@ class AccessRequestController extends Controller
             'company' => $user_access->company,
             'setor' => $user_access->setor,
             'phone' => $user_access->phone,
+            'classification' => $validated['classification'],
             // 'role' terá default 'user' via migration
         ]);
 

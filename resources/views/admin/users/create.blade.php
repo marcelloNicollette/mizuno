@@ -115,7 +115,8 @@
                     <div>
                         <label for="classification" class="block text-sm font-medium text-gray-700">Classificação</label>
                         <select name="classification" id="classification"
-                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                            required>
                             <option value="">Selecione a classificação</option>
                             <option value="admin-user" @selected(old('classification') == 'admin-user')>Administrador Usuário</option>
                             <option value="representante" @selected(old('classification') == 'representante')>Representante</option>
