@@ -15,6 +15,8 @@ use App\Models\FlagProduct;
 use App\Models\Segmentacao;
 use App\Models\SegmentacaoCliente;
 use App\Models\Subcategory;
+use App\Models\MeasureCategory;
+use App\Models\ShoeGrid;
 use App\Models\TechnologyCategory;
 use App\Models\TechnologyItem;
 use App\Models\User;
@@ -244,7 +246,7 @@ class GoogleSheetController extends Controller
             DB::beginTransaction();
 
             // Lê os cabeçalhos das colunas
-            $headerRange = $planilha."!A3:AM";
+            $headerRange = $planilha."!A3:AZ";
             
             $headerRows = $this->sheetService->readSheet($spreadsheetId, $headerRange);
 
@@ -255,7 +257,7 @@ class GoogleSheetController extends Controller
             $headers = $headerRows[0];
 
             // Lê os dados da planilha
-            $dataRange = $planilha."!A4:AM";
+            $dataRange = $planilha."!A4:AZ";
             $rows = $this->sheetService->readSheet($spreadsheetId, $dataRange);
 
             if (empty($rows)) {
@@ -297,7 +299,13 @@ class GoogleSheetController extends Controller
                     $groupedProducts[$sku]['colors'][] = [
                         'code' => $productData['COR_COD'],
                         'description' => $productData['COR_DESCRIÇÃO'] ?? $productData['COR_COD'],
-                        'genero' => $productData['GENERO'] ?? 'UNISSEX',
+                        'genero' => $this->resolveGeneroFromSheet(
+                            $productData['GENERO'] ?? null,
+                            $syncResults,
+                            $productData['CÓDIGO'] ?? null,
+                            [$rowIndex + 4],
+                            $productData['COR_COD'] ?? null
+                        ),
                         'flag' => $productData['COR_CLASSIFICAÇÃO'],
                         'collection' => $this->findOrCreateCollection($productData['COLEÇÃO'] ?? '', $productData['COLEÇÃO_SECUNDÁRIA'] ?? ''),
                         // Tenta obter numeração da cor a partir de possíveis cabeçalhos
@@ -355,6 +363,7 @@ class GoogleSheetController extends Controller
     public function syncReverse(Request $request)
     {
         $planilha = $this->resolveValueDomain($request);
+        //dd($planilha);
         set_time_limit(600);
         ini_set('memory_limit', '512M');
 
@@ -386,8 +395,8 @@ class GoogleSheetController extends Controller
             ]);
         }
 
-        $headerRange = "{$sheetName}!A3:AM";
-        $dataRange = "{$sheetName}!A4:AM";
+        $headerRange = "{$sheetName}!A3:AZ";
+        $dataRange = "{$sheetName}!A4:AZ";
 
         $syncResults = [
             'updated' => 0,
@@ -407,6 +416,107 @@ class GoogleSheetController extends Controller
             $headerIndex = $this->buildHeaderIndex($headers);
             $headerCount = count($headers);
             $endColumn = $this->indexToColumnLetter(max(0, $headerCount - 1));
+
+            $reset = false;
+            try {
+                $reset = (bool) $request->boolean('reset');
+            } catch (\Exception $e) {
+                $reset = false;
+            }
+
+            if ($reset) {
+                $productIds = $this->getProductIdsToReverseSync(null);
+                if (empty($productIds)) {
+                    return back()->with('success', 'Nenhum produto encontrado no banco para enviar para a planilha.');
+                }
+
+                $products = Product::with([
+                    'category.segmentacao',
+                    'subcategory',
+                    'measureCategories',
+                    'colors' => function ($q) {
+                        $q->orderBy('id')->with([
+                            'collection',
+                            'flagProduct',
+                            'flagProducts',
+                            'numeracao',
+                            'shoeGrids',
+                            'segmentacoesCliente',
+                        ]);
+                    },
+                    'caracteristicas',
+                    'links',
+                    'numeracoes',
+                    'calendario'
+                ])
+                    ->whereIn('id', $productIds)
+                    ->orderBy('order')
+                    ->orderBy('sku')
+                    ->get();
+
+                $exportRows = [];
+                foreach ($products as $product) {
+                    $sku = trim((string) ($product->sku ?? $product->code ?? ''));
+                    if ($sku === '') {
+                        $syncResults['skipped']++;
+                        continue;
+                    }
+
+                    $baseValues = $this->buildBaseProductSheetValues($product);
+                    $colors = $product->colors ?? collect();
+                    if ($colors instanceof \Illuminate\Support\Collection) {
+                        $colors = $colors->sortBy('id')->values();
+                    }
+                    if ($colors->isEmpty()) {
+                        $colors = collect([null]);
+                    }
+
+                    foreach ($colors as $color) {
+                        $rowValues = array_fill(0, $headerCount, '');
+                        $this->applyValuesToRow($rowValues, $headerIndex, $baseValues);
+                        $this->applyColorValuesToRow($rowValues, $headerIndex, $product, $color);
+
+                        if ($this->isEmptySheetRow($rowValues)) {
+                            $syncResults['skipped']++;
+                            continue;
+                        }
+
+                        $exportRows[] = $rowValues;
+                    }
+                }
+
+                $this->sheetService->clearSheet($spreadsheetId, "{$sheetName}!A4:{$endColumn}");
+
+                $chunks = array_chunk($exportRows, 500);
+                $rowCursor = 4;
+                foreach ($chunks as $chunk) {
+                    if (empty($chunk)) {
+                        continue;
+                    }
+
+                    $startRow = $rowCursor;
+                    $endRow = $rowCursor + count($chunk) - 1;
+                    $this->sheetService->updateSheet(
+                        $spreadsheetId,
+                        "{$sheetName}!A{$startRow}:{$endColumn}{$endRow}",
+                        $chunk,
+                        'USER_ENTERED'
+                    );
+
+                    $syncResults['updated'] += count($chunk);
+                    $rowCursor = $endRow + 1;
+                }
+
+                if (!$preview) {
+                    Cache::forever('google_sheets_reverse_sync_produtos_last_run', Carbon::now()->toIso8601String());
+                }
+
+                $targetText = $preview ? " (aba {$sheetName})" : '';
+                $message = "Sincronismo reverso concluído{$targetText}! \n
+                Atualizadas: {$syncResults['updated']}, Novas linhas: {$syncResults['appended']}, Ignoradas: {$syncResults['skipped']}, Erros: {$syncResults['errors']}";
+
+                return back()->with('success', $message);
+            }
 
             $rows = $this->sheetService->readSheet($spreadsheetId, $dataRange);
             if ($rows === null) {
@@ -440,6 +550,7 @@ class GoogleSheetController extends Controller
 
                 $colorCodeIndex = $headerIndex['COR_COD'] ?? null;
                 $colorCode = $colorCodeIndex !== null ? trim((string) ($rowPadded[$colorCodeIndex] ?? '')) : '';
+                $colorCodeKey = $this->normalizeColorCodeKey($colorCode);
 
                 $collectionIndex = $headerIndex['COLEÇÃO'] ?? null;
                 $collectionSecondaryIndex = $headerIndex['COLEÇÃO_SECUNDÁRIA'] ?? null;
@@ -447,8 +558,11 @@ class GoogleSheetController extends Controller
                 $collectionSecondary = $collectionSecondaryIndex !== null ? trim((string) ($rowPadded[$collectionSecondaryIndex] ?? '')) : '';
 
                 $collectionKey = $this->normalizeSheetHeader($collectionName) . '|' . $this->normalizeSheetHeader($collectionSecondary);
-                $sheetRowMap[$code][$colorCode][$collectionKey] = $rowNumber;
-                $sheetRowMapBySkuColor[$code][$colorCode] = $rowNumber;
+                $sheetRowMap[$code][$colorCodeKey][$collectionKey] = $sheetRowMap[$code][$colorCodeKey][$collectionKey] ?? [];
+                $sheetRowMap[$code][$colorCodeKey][$collectionKey][] = $rowNumber;
+
+                $sheetRowMapBySkuColor[$code][$colorCodeKey] = $sheetRowMapBySkuColor[$code][$colorCodeKey] ?? [];
+                $sheetRowMapBySkuColor[$code][$colorCodeKey][] = $rowNumber;
             }
 
             $lastRunIso = Cache::get('google_sheets_reverse_sync_produtos_last_run');
@@ -485,16 +599,26 @@ class GoogleSheetController extends Controller
             $products = Product::with([
                 'category.segmentacao',
                 'subcategory',
-                'colors.collection',
-                'colors.flagProduct',
-                'colors.flagProducts',
-                'colors.numeracao',
-                'colors.segmentacoesCliente',
+                'measureCategories',
+                'colors' => function ($q) {
+                    $q->orderBy('id')->with([
+                        'collection',
+                        'flagProduct',
+                        'flagProducts',
+                        'numeracao',
+                        'shoeGrids',
+                        'segmentacoesCliente',
+                    ]);
+                },
                 'caracteristicas',
                 'links',
                 'numeracoes',
                 'calendario'
-            ])->whereIn('id', $productIds)->get();
+            ])
+                ->whereIn('id', $productIds)
+                ->orderBy('order')
+                ->orderBy('sku')
+                ->get();
 
             $updates = [];
             $appends = [];
@@ -509,36 +633,49 @@ class GoogleSheetController extends Controller
                 $baseValues = $this->buildBaseProductSheetValues($product);
 
                 $colors = $product->colors ?? collect();
+                if ($colors instanceof \Illuminate\Support\Collection) {
+                    $colors = $colors->sortBy('id')->values();
+                }
                 if ($colors->isEmpty()) {
                     $colors = collect([null]);
                 }
 
                 foreach ($colors as $color) {
                     $colorCode = $color ? trim((string) ($color->color_code ?? '')) : '';
+                    $colorCodeKey = $this->normalizeColorCodeKey($colorCode);
                     $collectionKey = '';
                     if ($color && $color->collection) {
                         $collectionKey = $this->normalizeSheetHeader((string) ($color->collection->name ?? '')) . '|' .
                             $this->normalizeSheetHeader((string) ($color->collection->description ?? ''));
                     }
 
-                    $rowNumber = null;
+                    $rowNumbers = null;
                     if ($collectionKey !== '') {
-                        $rowNumber = $sheetRowMap[$sku][$colorCode][$collectionKey] ?? null;
+                        $rowNumbers = $sheetRowMap[$sku][$colorCodeKey][$collectionKey] ?? null;
                     }
-                    if ($rowNumber === null) {
-                        $rowNumber = $sheetRowMapBySkuColor[$sku][$colorCode] ?? null;
+                    if (empty($rowNumbers)) {
+                        $rowNumbers = $sheetRowMapBySkuColor[$sku][$colorCodeKey] ?? null;
                     }
 
-                    if ($rowNumber !== null) {
-                        $rowValues = $sheetRowValuesByNumber[$rowNumber] ?? array_fill(0, $headerCount, '');
-                        $rowValues = $this->padRowToCount($rowValues, $headerCount);
-                        $this->applyValuesToRow($rowValues, $headerIndex, $baseValues);
-                        $this->applyColorValuesToRow($rowValues, $headerIndex, $product, $color);
+                    if (!empty($rowNumbers)) {
+                        $uniqueRowNumbers = array_values(array_unique(array_map('intval', (array) $rowNumbers)));
+                        sort($uniqueRowNumbers);
 
-                        $updates[] = [
-                            'range' => "{$sheetName}!A{$rowNumber}:{$endColumn}{$rowNumber}",
-                            'values' => [$rowValues],
-                        ];
+                        foreach ($uniqueRowNumbers as $rowNumber) {
+                            if ($rowNumber <= 0) {
+                                continue;
+                            }
+
+                            $rowValues = $sheetRowValuesByNumber[$rowNumber] ?? array_fill(0, $headerCount, '');
+                            $rowValues = $this->padRowToCount($rowValues, $headerCount);
+                            $this->applyValuesToRow($rowValues, $headerIndex, $baseValues);
+                            $this->applyColorValuesToRow($rowValues, $headerIndex, $product, $color);
+
+                            $updates[] = [
+                                'range' => "{$sheetName}!A{$rowNumber}:{$endColumn}{$rowNumber}",
+                                'values' => [$rowValues],
+                            ];
+                        }
                     } else {
                         $rowValues = array_fill(0, $headerCount, '');
                         $this->applyValuesToRow($rowValues, $headerIndex, $baseValues);
@@ -607,6 +744,21 @@ class GoogleSheetController extends Controller
         return true;
     }
 
+    private function normalizeColorCodeKey(?string $colorCode): string
+    {
+        $text = trim((string) $colorCode);
+        if ($text === '') {
+            return '';
+        }
+
+        $text = str_replace('/', '_', $text);
+        $ascii = Str::upper(Str::ascii($text));
+        $ascii = preg_replace('/[^A-Z0-9]+/u', '_', $ascii);
+        $ascii = preg_replace('/_+/', '_', (string) $ascii);
+        $ascii = trim((string) $ascii, '_');
+        return $ascii;
+    }
+
 
     /**
      * Sincroniza um produto individual com base nos dados da planilha
@@ -642,7 +794,6 @@ class GoogleSheetController extends Controller
             'slug' => Str::slug($data['NOME']) . '-' . $data['CÓDIGO'],
             'category_id' => $category->id ?? null,
             'subcategory_id' => $subcategory->id ?? null,
-            'genero' => $data['GENERO'] ?? 'UNISSEX',
             'active' => true,
             'technologies' => json_encode($tecnologia),
             'flag_calendario' => $this->hasLaunchDatesForAnyColor($colors, $data),
@@ -812,7 +963,7 @@ class GoogleSheetController extends Controller
             return [];
         }
 
-        $parts = preg_split('/[;,]+/', $text) ?: [];
+        $parts = preg_split('/[;|,]+/', $text) ?: [];
         $parts = array_map(function ($t) {
             return trim((string) $t);
         }, $parts);
@@ -820,6 +971,192 @@ class GoogleSheetController extends Controller
         return array_values(array_filter($parts, function ($t) {
             return $t !== '' && $t !== '-';
         }));
+    }
+
+
+
+    private function findMeasureCategoryIdsFromSheet($medidas, &$syncResults = null, $sku = null, $rowIndexes = null): array
+    {
+        $names = $this->splitListValues($medidas);
+        if (empty($names)) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($names as $name) {
+            $category = MeasureCategory::where('name', $name)->first();
+            if (!$category) {
+                $slug = Str::slug($name);
+                $category = MeasureCategory::where('slug', $slug)->first();
+            }
+
+            if ($category) {
+                $ids[] = $category->id;
+                continue;
+            }
+
+            if (is_array($syncResults)) {
+                $syncResults['errors']++;
+                $rows = is_array($rowIndexes) ? implode(', ', $rowIndexes) : (string) $rowIndexes;
+                $rowsText = $rows !== '' ? " (linhas {$rows})" : '';
+                $skuText = !empty($sku) ? " SKU {$sku}" : '';
+                $syncResults['messages'][] = "Medidas {$name} não existe e precisa ser cadastrada antes de ser vinculada ao produto{$skuText}{$rowsText}.";
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    private function findShoeGridIdsFromSheet($grades, &$syncResults = null, $sku = null, $rowIndexes = null, $colorCode = null): array
+    {
+        $codes = $this->splitListValues($grades);
+        if (empty($codes)) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($codes as $code) {
+            $itemsSameCode = ShoeGrid::where('code', $code)
+                ->orderBy('created_at', 'asc')
+                ->get();
+
+            if ($itemsSameCode->isEmpty()) {
+                if (is_array($syncResults)) {
+                    $syncResults['errors']++;
+                    $rows = is_array($rowIndexes) ? implode(', ', $rowIndexes) : (string) $rowIndexes;
+                    $rowsText = $rows !== '' ? " (linhas {$rows})" : '';
+                    $skuText = !empty($sku) ? " SKU {$sku}" : '';
+                    $colorText = !empty($colorCode) ? " cor {$colorCode}" : '';
+                    $syncResults['messages'][] = "Grade {$code} não existe e precisa ser cadastrada antes de ser vinculada ao produto{$skuText}{$colorText}{$rowsText}.";
+                }
+                continue;
+            }
+
+            $keeper = $itemsSameCode->firstWhere('active', true) ?: $itemsSameCode->first();
+            if ($keeper) {
+                $ids[] = $keeper->id;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    private function parsePeriodoVendas($value): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        if (is_array($value)) {
+            $rawParts = $value;
+        } else {
+            $text = trim((string) $value);
+            if ($text === '' || $text === '-') {
+                return [];
+            }
+            $rawParts = preg_split('/[|,;\\s]+/u', $text) ?: [];
+        }
+
+        $map = [
+            'JAN' => 1, 'JANEIRO' => 1,
+            'FEV' => 2, 'FEVEREIRO' => 2,
+            'MAR' => 3, 'MARÇO' => 3, 'MARCO' => 3,
+            'ABR' => 4, 'ABRIL' => 4,
+            'MAI' => 5, 'MAIO' => 5,
+            'JUN' => 6, 'JUNHO' => 6,
+            'JUL' => 7, 'JULHO' => 7,
+            'AGO' => 8, 'AGOSTO' => 8,
+            'SET' => 9, 'SETEMBRO' => 9,
+            'OUT' => 10, 'OUTUBRO' => 10,
+            'NOV' => 11, 'NOVEMBRO' => 11,
+            'DEZ' => 12, 'DEZEMBRO' => 12,
+        ];
+
+        $months = [];
+        foreach ($rawParts as $part) {
+            $p = trim((string) $part);
+            if ($p === '' || $p === '-') {
+                continue;
+            }
+
+            if (is_numeric($p)) {
+                $m = (int) $p;
+                if ($m >= 1 && $m <= 12) {
+                    $months[] = $m;
+                }
+                continue;
+            }
+
+            $key = mb_strtoupper($p, 'UTF-8');
+            if (isset($map[$key])) {
+                $months[] = $map[$key];
+            }
+        }
+
+        $months = array_values(array_unique($months));
+        sort($months);
+        return $months;
+    }
+
+    private function normalizeGeneroValue($value): array
+    {
+        $raw = trim((string) ($value ?? ''));
+        if ($raw === '' || $raw === '-') {
+            return [
+                'value' => 'Unissex',
+                'is_invalid' => false,
+                'original' => $raw,
+            ];
+        }
+
+        $normalized = Str::upper(Str::ascii($raw));
+        $normalized = preg_replace('/[^A-Z0-9]+/u', '_', $normalized);
+        $normalized = preg_replace('/_+/', '_', (string) $normalized);
+        $normalized = trim((string) $normalized, '_');
+
+        $map = [
+            'MASCULINO' => 'Masculino',
+            'FEMININO' => 'Feminino',
+            'UNISSEX' => 'Unissex',
+            'UNISEX' => 'Unissex',
+            'INFANTIL' => 'Infantil',
+            'KID' => 'Infantil',
+            'KIDS' => 'Infantil',
+            'INFANTIL_KID' => 'Infantil',
+            'INFANTIL_KIDS' => 'Infantil',
+            'KID_INFANTIL' => 'Infantil',
+            'KIDS_INFANTIL' => 'Infantil',
+        ];
+
+        if (isset($map[$normalized])) {
+            return [
+                'value' => $map[$normalized],
+                'is_invalid' => false,
+                'original' => $raw,
+            ];
+        }
+
+        return [
+            'value' => 'Unissex',
+            'is_invalid' => true,
+            'original' => $raw,
+        ];
+    }
+
+    private function resolveGeneroFromSheet($value, &$syncResults = null, $sku = null, $rowIndexes = null, $colorCode = null): string
+    {
+        $resolved = $this->normalizeGeneroValue($value);
+
+        if ($resolved['is_invalid'] && is_array($syncResults)) {
+            $syncResults['errors']++;
+            $rows = is_array($rowIndexes) ? implode(', ', $rowIndexes) : (string) $rowIndexes;
+            $rowsText = $rows !== '' ? " (linhas {$rows})" : '';
+            $skuText = !empty($sku) ? " SKU {$sku}" : '';
+            $colorText = !empty($colorCode) ? " cor {$colorCode}" : '';
+            $syncResults['messages'][] = "Genero {$resolved['original']} é inválido. Valores aceitos: Masculino, Feminino, Unissex e Infantil/Kids. O sincronismo usou Unissex por padrão{$skuText}{$colorText}{$rowsText}.";
+        }
+
+        return $resolved['value'];
     }
 
     /**
@@ -1202,6 +1539,16 @@ class GoogleSheetController extends Controller
             if (method_exists($colorModel, 'flagProducts')) {
                 $colorModel->flagProducts()->sync($flagIds);
             }
+            $shoeGridIds = $this->findShoeGridIdsFromSheet(
+                $cor['grades'] ?? '',
+                $syncResults,
+                $product->sku ?? null,
+                $rowIndexes,
+                $cor['code'] ?? null
+            );
+            if (method_exists($colorModel, 'shoeGrids')) {
+                $colorModel->shoeGrids()->sync($shoeGridIds);
+            }
             $segmentacoesCliente = $cor['cliente_segmento'] ?? [];
             //dd($segmentacoesCliente);
             // Sincroniza segmentações de cliente para esta cor
@@ -1235,7 +1582,7 @@ class GoogleSheetController extends Controller
                 'collection_id' => $collection?->id,
                 'color_name' => $corData['code'],
                 'color_description' => $corData['description'],
-                'genero' => !empty($corData['genero']) ? $corData['genero'] : 'UNISSEX',
+                'genero' => !empty($corData['genero']) ? $corData['genero'] : 'Unissex',
                 'collection_id' => $collection?->id,
                 'flag_product_id' => $flag ?? null,
                 'numeracao_id' => $corData['numeracao_id'] ?? null,
@@ -1252,7 +1599,7 @@ class GoogleSheetController extends Controller
                 'collection_id' => $collection?->id,
                 'color_name' => $corData['code'],
                 'color_description' => $corData['description'],
-                'genero' => !empty($corData['genero']) ? $corData['genero'] : 'UNISSEX',
+                'genero' => !empty($corData['genero']) ? $corData['genero'] : 'Unissex',
             ],[
                 //'collection_id' => $collection?->id,
                 'flag_product_id' => $flag ?? null,
@@ -1567,6 +1914,9 @@ class GoogleSheetController extends Controller
             'COLEÇÃO' => ['COLECAO'],
             'COLEÇÃO_SECUNDÁRIA' => ['COLECAO_SECUNDARIA', 'COLECAO_SECUNDARIA_'],
             'NUMERAÇÃO' => ['NUMERACAO', 'NUMERACAO_TAMANHO', 'NUMERACAO_TAMANHOS'],
+            'MEDIDAS' => ['MEDIDAS', 'MEDIDA', 'TABELA_MEDIDAS', 'TABELA_DE_MEDIDAS'],
+            'GRADES' => ['GRADES', 'GRADE'],
+            'PERIODO_VENDA' => ['PERIODO_VENDA', 'PERIODO_DE_VENDA', 'PERIODO_VENDAS'],
         ];
 
         foreach ($aliases as $expected => $candidates) {
@@ -1679,6 +2029,21 @@ class GoogleSheetController extends Controller
         return trim((string) $text);
     }
 
+    private function getMeasureCategoriesAsString(Product $product): string
+    {
+        $categories = $product->relationLoaded('measureCategories') ? $product->measureCategories : collect();
+        if (empty($categories) || $categories->isEmpty()) {
+            return '';
+        }
+
+        return $categories
+            ->pluck('name')
+            ->filter()
+            ->unique()
+            ->values()
+            ->implode(', ');
+    }
+
     private function buildCaracteristicasSheetValues(Product $product): array
     {
         $map = [
@@ -1725,6 +2090,7 @@ class GoogleSheetController extends Controller
             'SUBCATEGORIA' => (string) ($product->subcategory?->faixa ?? ''),
             'PRODUTOS_SEGMENTO' => (string) ($product->category?->segmentacao?->segmento ?? ''),
             'TECNOLOGIAS' => $this->getTecnologiasAsString($product),
+            'MEDIDAS' => $this->getMeasureCategoriesAsString($product),
             'LINK 1' => (string) ($link1->link_url ?? ''),
             'LINK 1_DESCRICAO' => (string) ($link1->link_title ?? ''),
             'LINK 2' => (string) ($link2->link_url ?? ''),
@@ -1763,6 +2129,65 @@ class GoogleSheetController extends Controller
         return implode(', ', $titles);
     }
 
+    private function getColorShoeGridsAsString($color): string
+    {
+        if (empty($color) || !method_exists($color, 'shoeGrids')) {
+            return '';
+        }
+
+        $shoeGrids = $color->relationLoaded('shoeGrids') ? $color->shoeGrids : collect();
+        if (empty($shoeGrids) || $shoeGrids->isEmpty()) {
+            return '';
+        }
+
+        return $shoeGrids
+            ->pluck('code')
+            ->filter()
+            ->unique()
+            ->values()
+            ->implode(', ');
+    }
+
+    private function getColorPeriodoVendaAsString($color): string
+    {
+        if (empty($color)) {
+            return '';
+        }
+
+        $periodoVendas = $color->periodo_vendas ?? [];
+        if (!is_array($periodoVendas) || empty($periodoVendas)) {
+            return '';
+        }
+
+        $periodoVendas = array_values(array_unique(array_filter(array_map(function ($mes) {
+            $mesInt = (int) $mes;
+            return ($mesInt >= 1 && $mesInt <= 12) ? $mesInt : null;
+        }, $periodoVendas))));
+
+        sort($periodoVendas);
+
+        $monthLabels = [
+            1 => 'Jan',
+            2 => 'Fev',
+            3 => 'Mar',
+            4 => 'Abr',
+            5 => 'Mai',
+            6 => 'Jun',
+            7 => 'Jul',
+            8 => 'Ago',
+            9 => 'Set',
+            10 => 'Out',
+            11 => 'Nov',
+            12 => 'Dez',
+        ];
+
+        $labels = array_values(array_filter(array_map(function ($mes) use ($monthLabels) {
+            return $monthLabels[$mes] ?? null;
+        }, $periodoVendas)));
+
+        return implode(', ', $labels);
+    }
+
     private function applyColorValuesToRow(array &$rowValues, array $headerIndex, Product $product, $color): void
     {
         $collectionName = $color?->collection?->name ?? '';
@@ -1797,6 +2222,8 @@ class GoogleSheetController extends Controller
             'GENERO' => (string) ($color?->genero ?? ''),
             'CLIENTE_SEGMENTO' => (string) $segmentacoesCliente,
             'NUMERAÇÃO' => (string) $numeracao,
+            'GRADES' => $this->getColorShoeGridsAsString($color),
+            'PERIODO_VENDA' => $this->getColorPeriodoVendaAsString($color),
             'LANÇAMENTO' => $this->formatSheetDate($color?->data_mkt ?? null),
             'LANÇAMENTO_TRADE' => $this->formatSheetDate($color?->data_trade ?? null),
             'LANÇAMENTO_CLIENTE' => $this->formatSheetDate($color?->data_cliente ?? null),
@@ -1845,11 +2272,29 @@ class GoogleSheetController extends Controller
         }
 
         try {
+            $ids = array_merge($ids, DB::table('product_measure_categories')->where('updated_at', '>=', $since)->pluck('product_id')->all());
+        } catch (\Exception $e) {
+        }
+
+        try {
             $ids = array_merge(
                 $ids,
                 DB::table('color_segmentacao_cliente')
                     ->join('colors', 'color_segmentacao_cliente.color_id', '=', 'colors.id')
                     ->where('color_segmentacao_cliente.updated_at', '>=', $since)
+                    ->whereNull('colors.deleted_at')
+                    ->pluck('colors.product_id')
+                    ->all()
+            );
+        } catch (\Exception $e) {
+        }
+
+        try {
+            $ids = array_merge(
+                $ids,
+                DB::table('color_shoe_grids')
+                    ->join('colors', 'color_shoe_grids.color_id', '=', 'colors.id')
+                    ->where('color_shoe_grids.updated_at', '>=', $since)
                     ->whereNull('colors.deleted_at')
                     ->pluck('colors.product_id')
                     ->all()
