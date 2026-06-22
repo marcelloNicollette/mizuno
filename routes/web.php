@@ -38,6 +38,7 @@ use App\Models\ImgLogin;
 use App\Http\Controllers\Admin\MenuItemController;
 use App\Http\Controllers\Admin\ImgLoginController;
 use App\Http\Controllers\User\SharedCollectionController;
+use App\Http\Controllers\User\BlogController as UserBlogController;
 use App\Http\Controllers\Admin\ShoeGridController;
 use App\Http\Controllers\Admin\MeasureTableController;
 
@@ -679,6 +680,9 @@ Route::middleware(['auth', 'user'])->group(function () {
 
     Route::get('/user/{slug}', [frontendController::class, 'slug'])
         ->name('user.slug');
+
+    Route::get('/user/{slug}/blog', [UserBlogController::class, 'index'])->name('user.blog.index');
+    Route::get('/user/{slug}/blog/{blog}', [UserBlogController::class, 'show'])->name('user.blog.show');
     Route::get('/user/{slug}/tecnologias', [frontendController::class, 'tecnologias'])
         ->name('user.tecnologias');
     Route::get('/user/{slug}/materiais', [frontendController::class, 'materiais'])

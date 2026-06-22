@@ -23,6 +23,7 @@
         // Mapa para compatibilidade com o activeItem existente
         $activeMap = [
             'Início' => 'inicio',
+            'Blog' => 'blog',
             'Coleções' => 'colecoes',
             'Compartilhar' => 'compartilhar',
             'Baixar' => 'gerar-arquivo',

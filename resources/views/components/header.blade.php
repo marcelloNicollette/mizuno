@@ -132,7 +132,7 @@
 
                 @if ($user)
                     @if ($currentSlug != 'segmentacao')
-                        @if (count($parts) != 6)
+                        @if (count($parts) != 6 && (!isset($parts[3]) || $parts[2] != 'blog'))
                             @if ($user->segmentacoesCliente->count() != 1)
                                 <!-- CTA Segmentações Cliente -->
                                 <div x-data="{
