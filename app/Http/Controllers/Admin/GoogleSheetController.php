@@ -14,6 +14,7 @@ use App\Models\Collection;
 use App\Models\FlagProduct;
 use App\Models\Segmentacao;
 use App\Models\SegmentacaoCliente;
+use App\Models\SizeRun;
 use App\Models\Subcategory;
 use App\Models\MeasureCategory;
 use App\Models\ShoeGrid;
@@ -317,6 +318,9 @@ class GoogleSheetController extends Controller
                         'data_trade' => $productData['LANÇAMENTO_TRADE'] ?? '',
                         'data_cliente' => $productData['LANÇAMENTO_CLIENTE'] ?? '',
                         'data_dtc' => $productData['LANÇAMENTO_DTC'] ?? '',
+                        'size_run_table' => $productData['TABELA ME'] ?? '',
+                        'size_run_article_gen' => $productData['TABELA ME_ARTICLE_GEN'] ?? '',
+                        'size_run_article_cod' => $productData['TABELA ME_ARTICLE_COD'] ?? '',
                     ];
                 }
 
@@ -442,6 +446,7 @@ class GoogleSheetController extends Controller
                             'numeracao',
                             'shoeGrids',
                             'segmentacoesCliente',
+                            'sizeRun.sizeRun',
                         ]);
                     },
                     'caracteristicas',
@@ -608,6 +613,7 @@ class GoogleSheetController extends Controller
                         'numeracao',
                         'shoeGrids',
                         'segmentacoesCliente',
+                        'sizeRun.sizeRun',
                     ]);
                 },
                 'caracteristicas',
@@ -1559,6 +1565,15 @@ class GoogleSheetController extends Controller
                 // Se não há segmentações informadas, remove quaisquer vínculos existentes
                 $colorModel->segmentacoesCliente()->detach();
             }
+
+            $this->syncColorSizeRunFromSheet(
+                $colorModel,
+                $cor,
+                $syncResults,
+                $product->sku ?? null,
+                $rowIndexes,
+                $cor['code'] ?? null
+            );
             
             Log::info('AQUI - Sincronizada cor', [
                 'sku' => $product->sku,
@@ -1612,6 +1627,141 @@ class GoogleSheetController extends Controller
             ]);
              //dd($return_color);
         return $return_color;
+    }
+
+    private function resolveSizeRunIdFromSheet($value): ?int
+    {
+        $text = trim((string) ($value ?? ''));
+        if ($text === '' || $text === '-') {
+            return null;
+        }
+
+        if (!ctype_digit($text)) {
+            return null;
+        }
+
+        $sizeRunId = (int) $text;
+        if ($sizeRunId <= 0) {
+            return null;
+        }
+
+        return SizeRun::whereKey($sizeRunId)->exists() ? $sizeRunId : null;
+    }
+
+    private function normalizeSizeRunArticleGen($value): array
+    {
+        $raw = trim((string) ($value ?? ''));
+        if ($raw === '' || $raw === '-') {
+            return [
+                'value' => null,
+                'sheet' => null,
+                'label' => null,
+                'is_invalid' => false,
+                'original' => $raw,
+            ];
+        }
+
+        $normalized = Str::upper(Str::ascii($raw));
+        $normalized = preg_replace('/[^A-Z0-9]+/u', '_', $normalized);
+        $normalized = preg_replace('/_+/', '_', (string) $normalized);
+        $normalized = trim((string) $normalized, '_');
+
+        $map = [
+            'M' => ['db' => 'men', 'sheet' => 'M', 'label' => 'Article M'],
+            'MEN' => ['db' => 'men', 'sheet' => 'M', 'label' => 'Article M'],
+            'MAN' => ['db' => 'men', 'sheet' => 'M', 'label' => 'Article M'],
+            'MALE' => ['db' => 'men', 'sheet' => 'M', 'label' => 'Article M'],
+            'MASCULINO' => ['db' => 'men', 'sheet' => 'M', 'label' => 'Article M'],
+            'W' => ['db' => 'women', 'sheet' => 'W', 'label' => 'Article W'],
+            'WOMEN' => ['db' => 'women', 'sheet' => 'W', 'label' => 'Article W'],
+            'WOMAN' => ['db' => 'women', 'sheet' => 'W', 'label' => 'Article W'],
+            'FEMALE' => ['db' => 'women', 'sheet' => 'W', 'label' => 'Article W'],
+            'FEMININO' => ['db' => 'women', 'sheet' => 'W', 'label' => 'Article W'],
+        ];
+
+        if (isset($map[$normalized])) {
+            return [
+                'value' => $map[$normalized]['db'],
+                'sheet' => $map[$normalized]['sheet'],
+                'label' => $map[$normalized]['label'],
+                'is_invalid' => false,
+                'original' => $raw,
+            ];
+        }
+
+        return [
+            'value' => null,
+            'sheet' => null,
+            'label' => null,
+            'is_invalid' => true,
+            'original' => $raw,
+        ];
+    }
+
+    private function registerSizeRunSyncError(&$syncResults, string $message): void
+    {
+        if (!is_array($syncResults)) {
+            return;
+        }
+
+        $syncResults['errors']++;
+        $syncResults['messages'][] = $message;
+    }
+
+    private function syncColorSizeRunFromSheet($colorModel, array $corData, &$syncResults = null, $sku = null, $rowIndexes = null, $colorCode = null): void
+    {
+        $tableRaw = trim((string) ($corData['size_run_table'] ?? ''));
+        $articleCode = trim((string) ($corData['size_run_article_cod'] ?? ''));
+        $articleGenRaw = $corData['size_run_article_gen'] ?? null;
+
+        if ($tableRaw === '' || $tableRaw === '-') {
+            if (method_exists($colorModel, 'sizeRun')) {
+                $colorModel->sizeRun()->delete();
+            }
+            return;
+        }
+
+        $rows = is_array($rowIndexes) ? implode(', ', $rowIndexes) : (string) $rowIndexes;
+        $rowsText = $rows !== '' ? " (linhas {$rows})" : '';
+        $skuText = !empty($sku) ? " SKU {$sku}" : '';
+        $colorText = !empty($colorCode) ? " cor {$colorCode}" : '';
+
+        $sizeRunId = $this->resolveSizeRunIdFromSheet($tableRaw);
+        if ($sizeRunId === null) {
+            $this->registerSizeRunSyncError(
+                $syncResults,
+                "TABELA ME {$tableRaw} é inválida ou não existe para o produto{$skuText}{$colorText}{$rowsText}."
+            );
+            return;
+        }
+
+        if ($articleCode === '') {
+            $this->registerSizeRunSyncError(
+                $syncResults,
+                "TABELA ME_ARTICLE_COD é obrigatória quando TABELA ME estiver preenchida no produto{$skuText}{$colorText}{$rowsText}."
+            );
+            return;
+        }
+
+        $articleGen = $this->normalizeSizeRunArticleGen($articleGenRaw);
+        if ($articleGen['is_invalid'] || empty($articleGen['value'])) {
+            $this->registerSizeRunSyncError(
+                $syncResults,
+                "TABELA ME_ARTICLE_GEN {$articleGen['original']} é inválida. Valores aceitos: M ou W{$skuText}{$colorText}{$rowsText}."
+            );
+            return;
+        }
+
+        $colorModel->sizeRun()->updateOrCreate(
+            ['color_id' => $colorModel->id],
+            [
+                'size_run_id' => $sizeRunId,
+                'article_label' => $articleGen['label'],
+                'article_value' => $articleCode,
+                'me_article_gen' => $articleGen['value'],
+                'is_enabled' => true,
+            ]
+        );
     }
 
     private function syncTecnologias($tecnologia)
@@ -2228,6 +2378,9 @@ class GoogleSheetController extends Controller
             'LANÇAMENTO_TRADE' => $this->formatSheetDate($color?->data_trade ?? null),
             'LANÇAMENTO_CLIENTE' => $this->formatSheetDate($color?->data_cliente ?? null),
             'LANÇAMENTO_DTC' => $this->formatSheetDate($color?->data_dtc ?? null),
+            'TABELA ME' => (string) ($color?->sizeRun?->size_run_id ?? ''),
+            'TABELA ME_ARTICLE_GEN' => (string) ($this->normalizeSizeRunArticleGen($color?->sizeRun?->me_article_gen ?? null)['sheet'] ?? ''),
+            'TABELA ME_ARTICLE_COD' => (string) ($color?->sizeRun?->article_value ?? ''),
         ];
 
         $this->applyValuesToRow($rowValues, $headerIndex, $values);
@@ -2308,6 +2461,19 @@ class GoogleSheetController extends Controller
                 DB::table('color_flag_product')
                     ->join('colors', 'color_flag_product.color_id', '=', 'colors.id')
                     ->where('color_flag_product.updated_at', '>=', $since)
+                    ->whereNull('colors.deleted_at')
+                    ->pluck('colors.product_id')
+                    ->all()
+            );
+        } catch (\Exception $e) {
+        }
+
+        try {
+            $ids = array_merge(
+                $ids,
+                DB::table('color_size_runs')
+                    ->join('colors', 'color_size_runs.color_id', '=', 'colors.id')
+                    ->where('color_size_runs.updated_at', '>=', $since)
                     ->whereNull('colors.deleted_at')
                     ->pluck('colors.product_id')
                     ->all()
