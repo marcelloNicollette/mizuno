@@ -14,6 +14,7 @@ use App\Models\Size;
 use App\Models\Numeracao;
 use App\Models\ShoeGridGroup;
 use App\Models\MeasureCategory;
+use App\Models\SizeRun;
 use App\Models\TechnologyCategory;
 use App\Models\TechnologyItem;
 use App\Models\Calendario;
@@ -21,6 +22,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
 {
@@ -75,11 +77,12 @@ class ProductController extends Controller
         $shoeGridGroups = ShoeGridGroup::with(['grids' => fn($q) => $q->active()])
             ->active()
             ->get();
+        $sizeRuns = SizeRun::active()->with('items')->get();
         $measureCategories = MeasureCategory::active()->get();
         $accessLevels = ['representante', 'interno', 'fornecedor', 'convidado', 'cliente'];
         $segmentacoesCliente = \App\Models\SegmentacaoCliente::where('active', true)->get();
 
-        return view('admin.products.create', compact('collections', 'categories', 'colors', 'flags', 'technologies', 'sizes', 'numeracoes', 'shoeGridGroups', 'measureCategories', 'accessLevels', 'segmentacoesCliente'));
+        return view('admin.products.create', compact('collections', 'categories', 'colors', 'flags', 'technologies', 'sizes', 'numeracoes', 'shoeGridGroups', 'sizeRuns', 'measureCategories', 'accessLevels', 'segmentacoesCliente'));
     }
 
     public function show(Product $product)
@@ -116,10 +119,22 @@ class ProductController extends Controller
             'color_data_cliente.*' => 'nullable|date',
             'color_data_dtc' => 'nullable|array',
             'color_data_dtc.*' => 'nullable|date',
+            'color_size_run_enabled' => 'nullable|array',
+            'color_size_run_enabled.*' => 'nullable|boolean',
+            'color_size_run_id' => 'nullable|array',
+            'color_size_run_id.*' => 'nullable|exists:size_runs,id',
+            'color_size_run_article_label' => 'nullable|array',
+            'color_size_run_article_label.*' => 'nullable|string|max:60',
+            'color_size_run_article_value' => 'nullable|array',
+            'color_size_run_article_value.*' => 'nullable|string|max:60',
+            'color_size_run_me_article_gen' => 'nullable|array',
+            'color_size_run_me_article_gen.*' => 'nullable|in:men,women',
             'flag_calendario' => 'nullable|boolean',
             'active' => 'boolean',
             'order' => 'nullable|integer|min:1'
         ]);
+
+        $this->validateColorSizeRuns($request);
 
         $validated['slug'] = Str::slug($validated['name']) . '-' . $validated['code'];
 
@@ -170,6 +185,11 @@ class ProductController extends Controller
                 'data_trade' => $request->input('color_data_trade', []),
                 'data_cliente' => $request->input('color_data_cliente', []),
                 'data_dtc' => $request->input('color_data_dtc', []),
+                'size_run_enabled' => $request->input('color_size_run_enabled', []),
+                'size_run_ids' => $request->input('color_size_run_id', []),
+                'size_run_article_labels' => $request->input('color_size_run_article_label', []),
+                'size_run_article_values' => $request->input('color_size_run_article_value', []),
+                'size_run_me_article_gens' => $request->input('color_size_run_me_article_gen', []),
             ]);
         }
 
@@ -216,7 +236,7 @@ class ProductController extends Controller
     {
         $collections = Collection::get();
         $categories = Category::where('active', true)->get();
-        $colors = Color::where('product_id', $product->id)->with(['segmentacoesCliente', 'flagProducts', 'shoeGrids'])->get();
+        $colors = Color::where('product_id', $product->id)->with(['segmentacoesCliente', 'flagProducts', 'shoeGrids', 'sizeRun'])->get();
         $caracteristicas = CaracteristicaProduct::where('product_id', $product->id)->get();
         $links = LinksProduct::where('product_id', $product->id)->get();
         $flags = FlagProduct::where('status', true)->get();
@@ -226,6 +246,7 @@ class ProductController extends Controller
         $shoeGridGroups = ShoeGridGroup::with(['grids' => fn($q) => $q->active()])
             ->active()
             ->get();
+        $sizeRuns = SizeRun::active()->with('items')->get();
         $measureCategories = MeasureCategory::active()->get();
         $accessLevels = ['representante', 'interno', 'fornecedor', 'convidado', 'cliente'];
         $segmentacoesCliente = \App\Models\SegmentacaoCliente::where('active', true)->get();
@@ -257,6 +278,12 @@ class ProductController extends Controller
                 'color_data_trade' => $c->data_trade?->format('Y-m-d') ?? '',
                 'color_data_cliente' => $c->data_cliente?->format('Y-m-d') ?? '',
                 'color_data_dtc' => $c->data_dtc?->format('Y-m-d') ?? '',
+                'color_size_run_enabled' => $c->sizeRun && $c->sizeRun->is_enabled ? '1' : '0',
+                'color_size_run_id' => $c->sizeRun->size_run_id ?? '',
+                'color_size_run_article_label' => $c->sizeRun->article_label ?? 'Article',
+                'color_size_run_article_value' => $c->sizeRun->article_value ?? '',
+                'color_size_run_me_article_gen' => $c->sizeRun->me_article_gen
+                    ?? ($c->genero === 'Feminino' ? 'women' : 'men'),
             ];
         })->values()->all();
 
@@ -276,6 +303,11 @@ class ProductController extends Controller
                 'color_data_trade' => '',
                 'color_data_cliente' => '',
                 'color_data_dtc' => '',
+                'color_size_run_enabled' => '0',
+                'color_size_run_id' => '',
+                'color_size_run_article_label' => 'Article',
+                'color_size_run_article_value' => '',
+                'color_size_run_me_article_gen' => 'men',
             ]];
         }
 
@@ -339,7 +371,7 @@ class ProductController extends Controller
             ]];
         }
 
-        return view('admin.products.edit', compact('product', 'collections', 'categories', 'colors', 'caracteristicas', 'flags', 'technologies', 'links', 'sizes', 'numeracoes', 'shoeGridGroups', 'measureCategories', 'accessLevels', 'segmentacoesCliente', 'colorsForm', 'caracteristicasForm', 'sizesForm', 'numeracoesForm', 'linksForm'));
+        return view('admin.products.edit', compact('product', 'collections', 'categories', 'colors', 'caracteristicas', 'flags', 'technologies', 'links', 'sizes', 'numeracoes', 'shoeGridGroups', 'sizeRuns', 'measureCategories', 'accessLevels', 'segmentacoesCliente', 'colorsForm', 'caracteristicasForm', 'sizesForm', 'numeracoesForm', 'linksForm'));
     }
 
     public function update(Request $request, Product $product)
@@ -371,10 +403,22 @@ class ProductController extends Controller
             'color_data_cliente.*' => 'nullable|date',
             'color_data_dtc' => 'nullable|array',
             'color_data_dtc.*' => 'nullable|date',
+            'color_size_run_enabled' => 'nullable|array',
+            'color_size_run_enabled.*' => 'nullable|boolean',
+            'color_size_run_id' => 'nullable|array',
+            'color_size_run_id.*' => 'nullable|exists:size_runs,id',
+            'color_size_run_article_label' => 'nullable|array',
+            'color_size_run_article_label.*' => 'nullable|string|max:60',
+            'color_size_run_article_value' => 'nullable|array',
+            'color_size_run_article_value.*' => 'nullable|string|max:60',
+            'color_size_run_me_article_gen' => 'nullable|array',
+            'color_size_run_me_article_gen.*' => 'nullable|in:men,women',
             'flag_calendario' => 'nullable|boolean',
             'active' => 'boolean',
             'order' => 'nullable|integer|min:1'
         ]);
+
+        $this->validateColorSizeRuns($request);
 
         $validated['slug'] = Str::slug($validated['name']) . '-' . $validated['code'];
 
@@ -428,6 +472,11 @@ class ProductController extends Controller
                 'data_trade' => $request->input('color_data_trade', []),
                 'data_cliente' => $request->input('color_data_cliente', []),
                 'data_dtc' => $request->input('color_data_dtc', []),
+                'size_run_enabled' => $request->input('color_size_run_enabled', []),
+                'size_run_ids' => $request->input('color_size_run_id', []),
+                'size_run_article_labels' => $request->input('color_size_run_article_label', []),
+                'size_run_article_values' => $request->input('color_size_run_article_value', []),
+                'size_run_me_article_gens' => $request->input('color_size_run_me_article_gen', []),
             ]);
         }
 
@@ -561,5 +610,41 @@ class ProductController extends Controller
             ->get(['id', 'faixa']);
 
         return response()->json($subcategories);
+    }
+
+    private function validateColorSizeRuns(Request $request): void
+    {
+        $enabledList = $request->input('color_size_run_enabled', []);
+        $sizeRunIds = $request->input('color_size_run_id', []);
+        $articleValues = $request->input('color_size_run_article_value', []);
+        $meArticleGens = $request->input('color_size_run_me_article_gen', []);
+
+        foreach ($enabledList as $index => $enabled) {
+            if (!$request->boolean("color_size_run_enabled.$index")) {
+                continue;
+            }
+
+            $sizeRunId = $sizeRunIds[$index] ?? null;
+            $articleValue = trim((string) ($articleValues[$index] ?? ''));
+            $meArticleGen = trim((string) ($meArticleGens[$index] ?? ''));
+
+            if (empty($sizeRunId)) {
+                throw ValidationException::withMessages([
+                    "color_size_run_id.$index" => 'Selecione um Size Run para a cor habilitada.',
+                ]);
+            }
+
+            if ($articleValue === '') {
+                throw ValidationException::withMessages([
+                    "color_size_run_article_value.$index" => 'Preencha o Article da cor quando o Size Run estiver habilitado.',
+                ]);
+            }
+
+            if (!in_array($meArticleGen, ['men', 'women'], true)) {
+                throw ValidationException::withMessages([
+                    "color_size_run_me_article_gen.$index" => 'Selecione Men ou Women para a cor habilitada.',
+                ]);
+            }
+        }
     }
 }

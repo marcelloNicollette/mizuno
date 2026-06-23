@@ -124,6 +124,13 @@
                                 <span class="ml-2 text-sm">Remover Tag Exclusivo</span>
                             </label>-->
                             <label class="inline-flex items-center">
+                                <input type="hidden" name="include_size_run_me" value="0">
+                                <input type="checkbox" name="include_size_run_me"
+                                    class="form-checkbox w-[15px] h-[15px] rounded border-2 border-[#7A7A7A] bg-white checked:bg-white checked:border-[#7A7A7A] focus:ring-0 cursor-pointer relative"
+                                    value="1" checked>
+                                <span class="ml-2 text-sm">Incluir Size Run ME</span>
+                            </label>
+                            <label class="inline-flex items-center">
                                 <input type="checkbox" name="opcoes[]"
                                     class="form-checkbox w-[15px] h-[15px] rounded border-2 border-[#7A7A7A] bg-white checked:bg-white checked:border-[#7A7A7A] focus:ring-0 cursor-pointer relative"
                                     value="remover_capa_retranca">

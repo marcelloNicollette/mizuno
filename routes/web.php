@@ -41,6 +41,7 @@ use App\Http\Controllers\User\SharedCollectionController;
 use App\Http\Controllers\User\BlogController as UserBlogController;
 use App\Http\Controllers\Admin\ShoeGridController;
 use App\Http\Controllers\Admin\MeasureTableController;
+use App\Http\Controllers\Admin\SizeRunController;
 
 
 Route::get('/shared/{uuid}', [SharedCollectionController::class, 'show'])->name('shared.collection');
@@ -405,6 +406,17 @@ Route::prefix('/admin/measure-tables')->name('admin.measure-tables.')->group(fun
     // ── Célula inline (AJAX) ─────────────────────────────────────────────────
     Route::post('/cells/update', [MeasureTableController::class, 'updateCell'])->name('cells.update');
 });
+
+    Route::resource('/admin/size-runs', SizeRunController::class)
+        ->except(['show'])
+        ->names([
+            'index' => 'admin.size-runs.index',
+            'create' => 'admin.size-runs.create',
+            'store' => 'admin.size-runs.store',
+            'edit' => 'admin.size-runs.edit',
+            'update' => 'admin.size-runs.update',
+            'destroy' => 'admin.size-runs.destroy',
+        ]);
 
 
     Route::resource('/admin/menu-items', MenuItemController::class)

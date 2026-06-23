@@ -37,7 +37,17 @@ class ExportController extends Controller
         $tipoProdutos = $request->input('produtos', 'todos');
 
         $query = Color::where('collection_id', $request->collection_id)
-            ->with(['product', 'product.caracteristicas', 'product.caracteristicasDestaque', 'product.category', 'product.numeracoes', 'product.links',  'flagProduct', 'collection'])->orderBy('product_id', 'ASC');
+            ->with([
+                'product',
+                'product.caracteristicas',
+                'product.caracteristicasDestaque',
+                'product.category',
+                'product.numeracoes',
+                'product.links',
+                'flagProduct',
+                'collection',
+                'sizeRun.sizeRun.items',
+            ])->orderBy('product_id', 'ASC');
 
         // Se produtos específicos foram selecionados, filtrar por eles
         if ($tipoProdutos === 'selecao' && !empty($produtosSelecionados)) {
@@ -75,6 +85,7 @@ class ExportController extends Controller
         $produtos = $query->get()->sortBy(function ($item) {
             return optional($item->product->category)->name ?? '';
         });
+        $produtos = $this->prepareExportColors($produtos);
 
         // Tradução dinâmica se o idioma não for PT
         $userLocale = $request->user()->idioma ?? 'pt';
@@ -160,6 +171,10 @@ class ExportController extends Controller
         }
         //dd($produtos);
         $opcoes = $request->input('opcoes', []);
+        $showSizeRunMe = $request->boolean('include_size_run_me', true) || in_array('incluir_size_run_me', $opcoes, true);
+        if ($showSizeRunMe && !in_array('incluir_size_run_me', $opcoes, true)) {
+            $opcoes[] = 'incluir_size_run_me';
+        }
         $grupo_opcoes = array_push($opcoes, $request->input('grupo_opcoes', []));
 
         $svgPath = public_path('/images/logo-preto.svg');
@@ -183,6 +198,7 @@ class ExportController extends Controller
             'isPdf' => true,
             'base64Svg_preto' => $base64Svg_preto,
             'base64Svg_azul' => $base64Svg_azul,
+            'show_size_run_me' => $showSizeRunMe,
         ];
 
         if (in_array('separado', $opcoes)) {
@@ -505,7 +521,16 @@ class ExportController extends Controller
         $tipoProdutos = $exportUser->produtos;
 
         $query = Color::where('collection_id', $exportUser->collection_id)
-            ->with(['product', 'product.caracteristicas', 'product.caracteristicasDestaque', 'product.category', 'flagProduct', 'collection']);
+            ->with([
+                'product',
+                'product.caracteristicas',
+                'product.caracteristicasDestaque',
+                'product.category',
+                'product.numeracoes',
+                'flagProduct',
+                'collection',
+                'sizeRun.sizeRun.items',
+            ]);
 
         // Se produtos específicos foram selecionados, filtrar por eles
         if ($tipoProdutos === 'selecao' && !empty($produtosSelecionados)) {
@@ -539,8 +564,9 @@ class ExportController extends Controller
 
         $produtos = $query->get()->groupBy('product_id');
         $opcoes = $exportUser->opcoes ?? [];
+        $showSizeRunMe = in_array('incluir_size_run_me', $opcoes, true) || !is_array($opcoes) || empty($opcoes);
 
-        $merged = $produtos->collapse();
+        $merged = $this->prepareExportColors($produtos->collapse());
 
         $svgPath = public_path('/images/logo-branco.svg');
         $svgContent = file_get_contents($svgPath);
@@ -566,6 +592,7 @@ class ExportController extends Controller
             ],
             'base64Svg' => $base64Svg,
             'base64Svg_azul' => $base64Svg_azul,
+            'show_size_run_me' => $showSizeRunMe,
         ];
 
 
@@ -708,6 +735,91 @@ class ExportController extends Controller
         $filename = $exportUser->filename;
 
         return $pdf->download($filename);
+    }
+
+    private function prepareExportColors(\Illuminate\Support\Collection $colors): \Illuminate\Support\Collection
+    {
+        $colors = $colors->values();
+
+        $colors->each(function (Color $color): void {
+            $color->pdf_size_run = $this->makePdfSizeRunPayload($color);
+            $color->size_run_gender_label = $this->resolveMeArticleGenLabel($color);
+        });
+
+        $colorsByProduct = $colors->groupBy('product_id');
+
+        return $colors->map(function (Color $color) use ($colorsByProduct) {
+            $color->pdf_colors = ($colorsByProduct->get($color->product_id) ?? collect())->values();
+            return $color;
+        })->values();
+    }
+
+    private function makePdfSizeRunPayload(Color $color): ?array
+    {
+        $assignment = $color->sizeRun;
+        $sizeRun = $assignment?->sizeRun;
+        $enabled = (bool) ($assignment && $assignment->is_enabled && $sizeRun);
+
+        if (!$enabled || !$sizeRun || $sizeRun->items->isEmpty()) {
+            return null;
+        }
+
+        return [
+            'title' => $sizeRun->title ?: 'Size Run',
+            'article_label' => $assignment->article_label ?: 'Article',
+            'article_value' => (string) ($assignment->article_value ?? ''),
+            'note' => $sizeRun->note ?: '*For the selected color only.',
+            'size_label_left' => $sizeRun->size_label_left ?: 'BR SIZE',
+            'size_label_right' => $sizeRun->size_label_right ?: 'US SIZE',
+            'me_article_gen_label' => $this->resolveMeArticleGenLabel($color),
+            'items' => $sizeRun->items->map(function ($item) {
+                return [
+                    'left_value' => (string) $item->left_value,
+                    'right_value' => (string) $item->right_value,
+                ];
+            })->values()->all(),
+        ];
+    }
+
+    private function resolveMeArticleGenLabel(Color $color): ?string
+    {
+        $assignment = $color->sizeRun;
+        $sizeRun = $assignment?->sizeRun;
+
+        if (!$assignment || !$assignment->is_enabled || !$sizeRun) {
+            return null;
+        }
+
+        $raw = strtolower(trim((string) ($assignment?->me_article_gen ?? '')));
+        $normalized = preg_replace('/[^a-z]/', '', $raw);
+
+        if (in_array($normalized, ['men', 'man', 'male', 'masculino'], true)) {
+            return 'Men';
+        }
+
+        if (in_array($normalized, ['women', 'woman', 'female', 'feminino'], true)) {
+            return 'Women';
+        }
+
+        $articleLabel = strtolower(trim((string) ($assignment?->article_label ?? '')));
+        if (preg_match('/\barticle\s*w\b|\bwomen\b|\bwoman\b/', $articleLabel)) {
+            return 'Women';
+        }
+
+        if (preg_match('/\barticle\s*m\b|\bmen\b|\bman\b/', $articleLabel)) {
+            return 'Men';
+        }
+
+        $genero = strtolower(trim((string) ($color->genero ?? '')));
+        if (str_contains($genero, 'femin')) {
+            return 'Women';
+        }
+
+        if (str_contains($genero, 'masc')) {
+            return 'Men';
+        }
+
+        return null;
     }
 
     /**

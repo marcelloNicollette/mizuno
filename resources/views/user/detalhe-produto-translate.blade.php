@@ -152,6 +152,31 @@
                     $currentSlug = $parts[4];
                 }
             }
+
+            $buildSizeRunPayload = function ($color) {
+                $assignment = $color?->sizeRun;
+                $sizeRun = $assignment?->sizeRun;
+                $enabled = (bool) ($assignment && $assignment->is_enabled && $sizeRun);
+
+                return [
+                    'enabled' => $enabled,
+                    'title' => $enabled ? ($sizeRun->title ?: $sizeRun->name) : '',
+                    'article_label' => $enabled ? ($assignment->article_label ?: 'Article') : 'Article',
+                    'article_value' => $enabled ? ((string) ($assignment->article_value ?? '')) : '',
+                    'size_label_left' => $enabled ? ((string) ($sizeRun->size_label_left ?? '')) : '',
+                    'size_label_right' => $enabled ? ((string) ($sizeRun->size_label_right ?? '')) : '',
+                    'note' => $enabled ? ((string) ($sizeRun->note ?? '')) : '',
+                    'items' => $enabled
+                        ? $sizeRun->items
+                            ->map(fn($item) => [
+                                'left_value' => (string) $item->left_value,
+                                'right_value' => (string) $item->right_value,
+                            ])
+                            ->values()
+                            ->all()
+                        : [],
+                ];
+            };
         @endphp
         <div class="max-w-full px-2 pb-3">
             <div class="main-container">
@@ -357,10 +382,72 @@
                                         ? $produto->numeracoes->pluck('numero')->implode(', ')
                                         : '';
                                     $initialNumeracao = $firstColorNumeracao ?: $productNumeracoesText;
+                                    $initialSizeRun = $buildSizeRunPayload($produto->colors->first());
                                 @endphp
                                 <div>
                                     <p class="text-xs text-black opacity-50">Tamanhos</p>
                                     <p class="text-sm" id="numeracao">{{ $initialNumeracao }}</p>
+                                </div>
+
+                                <div id="size_run_wrapper"
+                                    class="col-span-full {{ !empty($initialSizeRun['enabled']) ? '' : 'hidden' }}">
+                                    <div class="inline-block px-0 py-0">
+                                        <p class="mb-0.5 text-[12px] font-normal leading-none text-[#8A8A8A]"
+                                            id="size_run_title">
+                                            {{ $initialSizeRun['title'] ?: 'Size Run' }}
+                                        </p>
+                                        <p class="mb-1.5 text-[13px] font-semibold leading-none text-[#565656]">
+                                            <span id="size_run_article_label">
+                                                {{ $initialSizeRun['article_label'] ?: 'Article' }}
+                                            </span>:
+                                            <span id="size_run_article_value">
+                                                {{ $initialSizeRun['article_value'] ?: '-' }}
+                                            </span>
+                                        </p>
+
+                                        <div class="overflow-hidden">
+                                            <table class="border-collapse bg-transparent text-[11px] leading-none">
+                                                <tbody id="size_run_rows">
+                                                    @if (count($initialSizeRun['items']) > 0)
+                                                        <tr>
+                                                            <td class="border border-[#AEAEAE] bg-[#F5F5F5] px-2.5 py-1.5 text-[#8A8A8A]"
+                                                                id="size_run_label_left">
+                                                                {{ $initialSizeRun['size_label_left'] ?: 'BR SIZE' }}
+                                                            </td>
+                                                            @foreach ($initialSizeRun['items'] as $item)
+                                                                <td
+                                                                    class="border border-[#AEAEAE] bg-white px-2 py-1.5 text-center font-semibold text-[#565656]">
+                                                                    {{ $item['left_value'] }}
+                                                                </td>
+                                                            @endforeach
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="border border-[#AEAEAE] bg-[#F5F5F5] px-2.5 py-1.5 text-[#8A8A8A]"
+                                                                id="size_run_label_right">
+                                                                {{ $initialSizeRun['size_label_right'] ?: 'US SIZE' }}
+                                                            </td>
+                                                            @foreach ($initialSizeRun['items'] as $item)
+                                                                <td
+                                                                    class="border border-[#AEAEAE] bg-white px-2 py-1.5 text-center font-semibold text-[#565656]">
+                                                                    {{ $item['right_value'] }}
+                                                                </td>
+                                                            @endforeach
+                                                        </tr>
+                                                    @else
+                                                        <tr>
+                                                            <td class="border border-[#AEAEAE] bg-white px-3 py-2 text-center text-sm text-[#565656]">
+                                                                -
+                                                            </td>
+                                                        </tr>
+                                                    @endif
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        <p class="mt-1 text-[11px] font-medium text-[#8A8A8A]" id="size_run_note">
+                                            {{ $initialSizeRun['note'] ?: '*Somente para a cor selecionada.' }}
+                                        </p>
+                                    </div>
                                 </div>
 
                             </div>
@@ -1099,6 +1186,7 @@
                             carregarImagensProdutoOtimizado(selectedColorCode);
                             // Atualizar numeração conforme a cor selecionada
                             updateNumeracaoByColorCode(selectedColorCode);
+                            updateSizeRunByColorCode(selectedColorCode);
 
                             // Verificar status da wishlist (pode ser assíncrono sem afetar UX)
                             checkWishlistStatus();
@@ -1195,7 +1283,8 @@
                         @else
                             null
                         @endif ,
-                        segmentacaoIds: @json($color->segmentacoesCliente->pluck('id')->toArray())
+                        segmentacaoIds: @json($color->segmentacoesCliente->pluck('id')->toArray()),
+                        size_run: @json($buildSizeRunPayload($color))
                     },
                 @endforeach
             ];
@@ -1209,6 +1298,64 @@
                     }
                 } catch (e) {
                     console.error('Erro atualizando numeração da cor:', e);
+                }
+            }
+
+            function updateSizeRunByColorCode(colorCode) {
+                try {
+                    const cor = coresData.find(c => c.color_code === colorCode);
+                    const sizeRun = cor && cor.size_run ? cor.size_run : null;
+                    const wrapper = document.getElementById('size_run_wrapper');
+                    const titleEl = document.getElementById('size_run_title');
+                    const articleLabelEl = document.getElementById('size_run_article_label');
+                    const articleValueEl = document.getElementById('size_run_article_value');
+                    const rowsEl = document.getElementById('size_run_rows');
+                    const noteEl = document.getElementById('size_run_note');
+
+                    if (!wrapper || !titleEl || !articleLabelEl || !articleValueEl || !rowsEl || !noteEl) {
+                        return;
+                    }
+
+                    if (!sizeRun || !sizeRun.enabled || !Array.isArray(sizeRun.items) || sizeRun.items.length === 0) {
+                        wrapper.classList.add('hidden');
+                        rowsEl.innerHTML = '';
+                        return;
+                    }
+
+                    wrapper.classList.remove('hidden');
+                    titleEl.textContent = sizeRun.title || 'Size Run';
+                    articleLabelEl.textContent = sizeRun.article_label || 'Article';
+                    articleValueEl.textContent = sizeRun.article_value || '-';
+                    noteEl.textContent = sizeRun.note || '*Somente para a cor selecionada.';
+
+                    const leftCells = sizeRun.items.map((item) => `
+                        <td class="border border-[#AEAEAE] bg-white px-2 py-1.5 text-center font-semibold text-[#565656]">
+                            ${item.left_value ?? ''}
+                        </td>
+                    `).join('');
+
+                    const rightCells = sizeRun.items.map((item) => `
+                        <td class="border border-[#AEAEAE] bg-white px-2 py-1.5 text-center font-semibold text-[#565656]">
+                            ${item.right_value ?? ''}
+                        </td>
+                    `).join('');
+
+                    rowsEl.innerHTML = `
+                        <tr>
+                            <td id="size_run_label_left" class="border border-[#AEAEAE] bg-[#F5F5F5] px-2.5 py-1.5 text-[#8A8A8A]">
+                                ${sizeRun.size_label_left || 'BR SIZE'}
+                            </td>
+                            ${leftCells}
+                        </tr>
+                        <tr>
+                            <td id="size_run_label_right" class="border border-[#AEAEAE] bg-[#F5F5F5] px-2.5 py-1.5 text-[#8A8A8A]">
+                                ${sizeRun.size_label_right || 'US SIZE'}
+                            </td>
+                            ${rightCells}
+                        </tr>
+                    `;
+                } catch (e) {
+                    console.error('Erro atualizando size run da cor:', e);
                 }
             }
 
@@ -1306,6 +1453,7 @@
                 if (coresFiltradas.length > 0) {
                     carregarImagensProdutoOtimizado(coresFiltradas[0].color_code);
                     updateNumeracaoByColorCode(coresFiltradas[0].color_code);
+                    updateSizeRunByColorCode(coresFiltradas[0].color_code);
                 }
             }
 
@@ -1321,6 +1469,7 @@
                     if (coresFiltradas.length > 0) {
                         carregarImagensProdutoOtimizado(coresFiltradas[0].color_code);
                         updateNumeracaoByColorCode(coresFiltradas[0].color_code);
+                        updateSizeRunByColorCode(coresFiltradas[0].color_code);
                     }
                 });
             }

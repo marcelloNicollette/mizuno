@@ -260,6 +260,7 @@ class frontendController extends Controller
         }
         $colorRelations[] = 'shoeGrids.group';
         $colorRelations[] = 'shoeGrids.items.size';
+        $colorRelations[] = 'sizeRun.sizeRun.items';
 
         // Buscar o produto com suas relações
         $produto = Product::where('code', $produto)->with([
@@ -339,6 +340,7 @@ class frontendController extends Controller
         }
         $colorRelations[] = 'shoeGrids.group';
         $colorRelations[] = 'shoeGrids.items.size';
+        $colorRelations[] = 'sizeRun.sizeRun.items';
 
         // Buscar o produto com suas relações
         $produto = Product::where('code', $produto)->with([

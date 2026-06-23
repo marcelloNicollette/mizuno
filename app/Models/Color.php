@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Color extends Model
 {
@@ -76,5 +77,10 @@ class Color extends Model
     {
         return $this->belongsToMany(SegmentacaoCliente::class, 'color_segmentacao_cliente')
                     ->withTimestamps();
+    }
+
+    public function sizeRun(): HasOne
+    {
+        return $this->hasOne(ColorSizeRun::class);
     }
 }

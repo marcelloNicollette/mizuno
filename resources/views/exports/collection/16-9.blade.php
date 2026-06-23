@@ -238,6 +238,12 @@
                                                         {{ $collection->flagProduct->flag_title }}
                                                     </div>
                                                 @endif
+                                                @if (!empty($show_size_run_me) && !empty($collection->size_run_gender_label))
+                                                    <div
+                                                        style="position: absolute; top: 20px; right: 6px; background: #B9B9B9; color: #FFF; padding: 2px 5px; border-radius: 4px; font-size: 6px; line-height: 1; text-transform: uppercase;">
+                                                        {{ $collection->size_run_gender_label }}
+                                                    </div>
+                                                @endif
                                                 <div style="margin-top: 10px; margin-bottom: 10px; text-align: center;">
                                                     @php
                                                         $imagePath =
@@ -271,6 +277,7 @@
                                     </tr>
                                 </table>
                             </td>
+                            @php $pdfColors = collect($collection->pdf_colors ?? [$collection]); @endphp
                             <td width="270" style="vertical-align: top;">
                                 <!-- Cabeçalho do produto -->
                                 <div style="padding:10px 10px 0px 10px;">
@@ -285,6 +292,12 @@
                                         style="font-family: 'AktivGrotesk'; margin: 0px 0 10px 0;
                             font-size: 38.01px; font-weight: 900; line-height: 25px; letter-spacing: -1.52px;text-transform: uppercase;">
                                         {{ $collection->product->name }}</h1>
+
+                                    @include('exports.collection.partials.size-runs', [
+                                        'colors' => $pdfColors,
+                                        'show_size_run_me' => $show_size_run_me ?? false,
+                                        'compact' => true,
+                                    ])
 
                                     <table width="100%">
                                         <tr>

@@ -202,6 +202,11 @@
                                 color_data_trade: '',
                                 color_data_cliente: '',
                                 color_data_dtc: '',
+                                color_size_run_enabled: '0',
+                                color_size_run_id: '',
+                                color_size_run_article_label: 'Article',
+                                color_size_run_article_value: '',
+                                color_size_run_me_article_gen: 'men',
                             }],
                             adicionarCampo() {
                                 this.campos.push({
@@ -219,6 +224,11 @@
                                     color_data_trade: '',
                                     color_data_cliente: '',
                                     color_data_dtc: '',
+                                    color_size_run_enabled: '0',
+                                    color_size_run_id: '',
+                                    color_size_run_article_label: 'Article',
+                                    color_size_run_article_value: '',
+                                    color_size_run_me_article_gen: 'men',
                                 });
                             },
                             removerCampo(index) {
@@ -239,6 +249,11 @@
                                         color_data_trade: '',
                                         color_data_cliente: '',
                                         color_data_dtc: '',
+                                        color_size_run_enabled: '0',
+                                        color_size_run_id: '',
+                                        color_size_run_article_label: 'Article',
+                                        color_size_run_article_value: '',
+                                        color_size_run_me_article_gen: 'men',
                                     });
                                 }
                             }
@@ -330,29 +345,107 @@
                                             </div>
 
                                             <div class="col-span-full border border-gray-200 rounded-md bg-white p-4">
-                                                <label class="block text-sm font-medium text-gray-700 mb-3">Lançamentos da Cor</label>
+                                                <label class="block text-sm font-medium text-gray-700 mb-3">Lançamentos da
+                                                    Cor</label>
                                                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                                     <div>
-                                                        <label class="block text-xs font-medium text-gray-700">Data Marketing</label>
-                                                        <input type="date" :name="`color_data_mkt[]`" x-model="campo.color_data_mkt"
+                                                        <label class="block text-xs font-medium text-gray-700">Data
+                                                            Marketing</label>
+                                                        <input type="date" :name="`color_data_mkt[]`"
+                                                            x-model="campo.color_data_mkt"
                                                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                                                     </div>
                                                     <div>
-                                                        <label class="block text-xs font-medium text-gray-700">Data Trade</label>
-                                                        <input type="date" :name="`color_data_trade[]`" x-model="campo.color_data_trade"
+                                                        <label class="block text-xs font-medium text-gray-700">Data
+                                                            Trade</label>
+                                                        <input type="date" :name="`color_data_trade[]`"
+                                                            x-model="campo.color_data_trade"
                                                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                                                     </div>
                                                     <div>
-                                                        <label class="block text-xs font-medium text-gray-700">Data Cliente</label>
-                                                        <input type="date" :name="`color_data_cliente[]`" x-model="campo.color_data_cliente"
+                                                        <label class="block text-xs font-medium text-gray-700">Data
+                                                            Cliente</label>
+                                                        <input type="date" :name="`color_data_cliente[]`"
+                                                            x-model="campo.color_data_cliente"
                                                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                                                     </div>
                                                     <div>
-                                                        <label class="block text-xs font-medium text-gray-700">Data DTC</label>
-                                                        <input type="date" :name="`color_data_dtc[]`" x-model="campo.color_data_dtc"
+                                                        <label class="block text-xs font-medium text-gray-700">Data
+                                                            DTC</label>
+                                                        <input type="date" :name="`color_data_dtc[]`"
+                                                            x-model="campo.color_data_dtc"
                                                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                                                     </div>
                                                 </div>
+                                            </div>
+
+                                            <div class="col-span-full border border-gray-200 rounded-md bg-white p-4">
+                                                <div class="flex items-center justify-between gap-4 mb-3">
+                                                    <label class="block text-sm font-medium text-gray-700">Size Run
+                                                        ME</label>
+                                                    <select :name="`color_size_run_enabled[]`"
+                                                        x-model="campo.color_size_run_enabled"
+                                                        class="block w-full md:w-56 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                                        <option value="0">Nao usar</option>
+                                                        <option value="1">Usar nesta cor</option>
+                                                    </select>
+                                                </div>
+
+                                                @if (isset($sizeRuns) && $sizeRuns->count() > 0)
+                                                    <div x-show="campo.color_size_run_enabled == '1'"
+                                                        class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                                        <div>
+                                                            <label class="block text-xs font-medium text-gray-700">Tabela
+                                                                Size Run</label>
+                                                            <select :name="`color_size_run_id[]`"
+                                                                x-model="campo.color_size_run_id"
+                                                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                                                <option value="">Selecione um Size Run</option>
+                                                                @foreach ($sizeRuns as $sizeRun)
+                                                                    <option value="{{ $sizeRun->id }}">
+                                                                        {{ $sizeRun->name }}
+                                                                    </option>
+                                                                @endforeach
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label class="block text-xs font-medium text-gray-700">Article
+                                                                Label</label>
+                                                            <input type="text" :name="`color_size_run_article_label[]`"
+                                                                x-model="campo.color_size_run_article_label"
+                                                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                                placeholder="Ex.: Article W">
+                                                        </div>
+                                                        <div>
+                                                            <label class="block text-xs font-medium text-gray-700">Article
+                                                                Value</label>
+                                                            <input type="text" :name="`color_size_run_article_value[]`"
+                                                                x-model="campo.color_size_run_article_value"
+                                                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                                placeholder="Ex.: 6006986">
+                                                        </div>
+                                                        <div>
+                                                            <label class="block text-xs font-medium text-gray-700">Tabela
+                                                                ME Article Gen</label>
+                                                            <select :name="`color_size_run_me_article_gen[]`"
+                                                                x-model="campo.color_size_run_me_article_gen"
+                                                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                                                <option value="men">Men</option>
+                                                                <option value="women">Women</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                @else
+                                                    <div
+                                                        class="p-3 border border-indigo-200 rounded-md bg-gray-50 text-center">
+                                                        <p class="text-xs text-gray-500 mb-1">Nenhum Size Run disponivel.
+                                                        </p>
+                                                        <a href="{{ route('admin.size-runs.index') }}"
+                                                            class="text-blue-600 hover:text-blue-800 text-xs font-medium">
+                                                            Gerenciar Size Runs
+                                                        </a>
+                                                    </div>
+                                                @endif
                                             </div>
 
                                             <div class="col-span-full border border-gray-200 rounded-md bg-gray-50 p-4">
@@ -800,7 +893,8 @@
                             @enderror
                         </div>
                     </div>
-                    <p class="mt-2 text-sm text-gray-500">As datas de lançamento agora são cadastradas dentro de cada cor do produto.</p>
+                    <p class="mt-2 text-sm text-gray-500">As datas de lançamento agora são cadastradas dentro de cada cor
+                        do produto.</p>
                 </div>
 
                 <div class="grid grid-cols-2 gap-6">

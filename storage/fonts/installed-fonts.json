@@ -1,8 +1,8 @@
 {
     "aktivgrotesk": {
-        "normal": "\/Applications\/MAMP\/htdocs\/vulcabras\/mizuno\/storage\/fonts\/\/aktivgrotesk_normal_66d2ca2dcfac822c46efba2649ea8d8c",
-        "600": "aktivgrotesk_600_66d2ca2dcfac822c46efba2649ea8d8c",
-        "bold": "\/Applications\/MAMP\/htdocs\/vulcabras\/mizuno\/storage\/fonts\/\/aktivgrotesk_bold_52586fabd1aaa35d6ee9b8b153b37703",
-        "900": "\/Applications\/MAMP\/htdocs\/vulcabras\/mizuno\/storage\/fonts\/\/aktivgrotesk_900_1c030d3e8fd3a7aadcaebc2d9fe3a59c"
+        "normal": "\/Applications\/MAMP\/htdocs\/vulcabras\/mizuno\/mizuno\/storage\/fonts\/\/aktivgrotesk_normal_3cf8ea470f95e19385de5a5fbdd7c406",
+        "600": "\/Applications\/MAMP\/htdocs\/vulcabras\/mizuno\/mizuno\/storage\/fonts\/\/aktivgrotesk_600_745201b7ccdc8cf265e7f495f8aadb68",
+        "bold": "\/Applications\/MAMP\/htdocs\/vulcabras\/mizuno\/mizuno\/storage\/fonts\/\/aktivgrotesk_bold_7cdeaed8deed046f2e0a1311f9fd393b",
+        "900": "aktivgrotesk_900_1a02e37599734982cd50440485194f38"
     }
 }

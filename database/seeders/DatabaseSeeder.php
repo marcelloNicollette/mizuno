@@ -41,6 +41,7 @@ class DatabaseSeeder extends Seeder
             LinksProductTableSeeder::class,
             ProductNumeracaoTableSeeder::class,
             ProductSizesTableSeeder::class,
+            SizeRunSeeder::class,
 
             // Seeders de coleções e banners
             CollectionsTableSeeder::class,

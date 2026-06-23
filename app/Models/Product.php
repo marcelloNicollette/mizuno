@@ -64,7 +64,7 @@ class Product extends Model
 
     public function colors()
     {
-        return $this->hasMany(Color::class, 'product_id')->with(['collection', 'flagProduct', 'segmentacoesCliente']);
+        return $this->hasMany(Color::class, 'product_id')->with(['collection', 'flagProduct', 'segmentacoesCliente', 'sizeRun']);
     }
 
     public function caracteristicas()
@@ -176,6 +176,8 @@ class Product extends Model
             if (isset($colorData['segmentacoes_cliente'][$index]) && is_array($colorData['segmentacoes_cliente'][$index])) {
                 $color->segmentacoesCliente()->sync($colorData['segmentacoes_cliente'][$index]);
             }
+
+            $this->syncColorSizeRun($color, $colorData, $index);
         }
     }
 
@@ -266,6 +268,8 @@ class Product extends Model
             if (isset($colorData['segmentacoes_cliente'][$index]) && is_array($colorData['segmentacoes_cliente'][$index])) {
                 $color->segmentacoesCliente()->sync($colorData['segmentacoes_cliente'][$index]);
             }
+
+            $this->syncColorSizeRun($color, $colorData, $index);
         }
 
         ProductColorsSynced::dispatch($this);
@@ -356,5 +360,30 @@ class Product extends Model
         $text = trim((string) $value);
 
         return $text === '' ? null : $text;
+    }
+
+    private function syncColorSizeRun(Color $color, array $colorData, int $index): void
+    {
+        $enabled = filter_var($colorData['size_run_enabled'][$index] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $sizeRunId = $colorData['size_run_ids'][$index] ?? null;
+        $articleLabel = trim((string) ($colorData['size_run_article_labels'][$index] ?? ''));
+        $articleValue = trim((string) ($colorData['size_run_article_values'][$index] ?? ''));
+        $meArticleGen = strtolower(trim((string) ($colorData['size_run_me_article_gens'][$index] ?? '')));
+
+        if (!$enabled || empty($sizeRunId)) {
+            $color->sizeRun()->delete();
+            return;
+        }
+
+        $color->sizeRun()->updateOrCreate(
+            ['color_id' => $color->id],
+            [
+                'size_run_id' => $sizeRunId,
+                'article_label' => $articleLabel !== '' ? $articleLabel : 'Article',
+                'article_value' => $articleValue !== '' ? $articleValue : null,
+                'me_article_gen' => in_array($meArticleGen, ['men', 'women'], true) ? $meArticleGen : null,
+                'is_enabled' => true,
+            ]
+        );
     }
 }

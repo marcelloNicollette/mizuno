@@ -228,51 +228,56 @@
                         <!-- cores do tenis -->
                         <tr>
                             <td colspan="2">
+                                @php $pdfColors = collect($collection->pdf_colors ?? [$collection]); @endphp
                                 <table style="width: 100%; margin: 0 auto;  border-radius: 8px; margin-top:5px;">
                                     <tr>
-
-
                                         <td style="">
-
-                                            <div
-                                                style="width: 120px; padding: 0; position: relative; float: left; text-align: center;">
-                                                @if ($collection->flagProduct)
-                                                    <div
-                                                        style="position: absolute; top: 15px; left: 5px; background: {{ $collection->flagProduct->flag_bg }}; color: {{ $collection->flagProduct->flag_color_text_bg }}; padding: 5px; border-radius: 100px; font-size: 7px; margin: 5px 0 0 5px;">
-                                                        {{ $collection->flagProduct->flag_title }}
-                                                    </div>
-                                                @endif
-                                                <div style="margin-top: 10px; margin-bottom: 10px; text-align: center;">
-                                                    @php
-                                                        $imagePath =
-                                                            'images/produtos/' .
-                                                            $collection->product->code .
-                                                            '_' .
-                                                            str_replace('/', '_', $collection->color_code) .
-                                                            '.jpg';
-                                                        $fullImagePath = public_path($imagePath);
-                                                        $imageExists = file_exists($fullImagePath);
-                                                        $imageSrc = $imageExists
-                                                            ? public_path($imagePath)
-                                                            : public_path('images/img-padrao-mz.png');
-                                                    @endphp
-                                                    <img src="{{ $imageSrc }}" alt="{{ $collection->color_name }}"
-                                                        style="width: 110px; height: 110px; border-radius: 13px;" />
-                                                </div>
+                                            @foreach ($pdfColors as $pdfColor)
                                                 <div
-                                                    style="font-size: 14px; font-weight: bold; color: #333; margin-bottom: 5px; text-align: center;">
-                                                    {{ \Illuminate\Support\Str::limit($collection->color_name, 12, '...') }}
+                                                    style="width: 120px; padding: 0; position: relative; float: left; text-align: center;">
+                                                    @if ($pdfColor->flagProduct)
+                                                        <div
+                                                            style="position: absolute; top: 15px; left: 5px; background: {{ $pdfColor->flagProduct->flag_bg }}; color: {{ $pdfColor->flagProduct->flag_color_text_bg }}; padding: 5px; border-radius: 100px; font-size: 7px; margin: 5px 0 0 5px;">
+                                                            {{ $pdfColor->flagProduct->flag_title }}
+                                                        </div>
+                                                    @endif
+                                                    @if (!empty($show_size_run_me) && !empty($pdfColor->size_run_gender_label))
+                                                        <div
+                                                            style="position: absolute; top: 20px; right: 6px; background: #B9B9B9; color: #FFF; padding: 2px 5px; border-radius: 4px; font-size: 6px; line-height: 1; text-transform: uppercase;">
+                                                            {{ $pdfColor->size_run_gender_label }}
+                                                        </div>
+                                                    @endif
+                                                    <div
+                                                        style="margin-top: 10px; margin-bottom: 10px; text-align: center;">
+                                                        @php
+                                                            $imagePath =
+                                                                'images/produtos/' .
+                                                                $pdfColor->product->code .
+                                                                '_' .
+                                                                str_replace('/', '_', $pdfColor->color_code) .
+                                                                '.jpg';
+                                                            $fullImagePath = public_path($imagePath);
+                                                            $imageExists = file_exists($fullImagePath);
+                                                            $imageSrc = $imageExists
+                                                                ? public_path($imagePath)
+                                                                : public_path('images/img-padrao-mz.png');
+                                                        @endphp
+                                                        <img src="{{ $imageSrc }}"
+                                                            alt="{{ $pdfColor->color_name }}"
+                                                            style="width: 110px; height: 110px; border-radius: 13px;" />
+                                                    </div>
+                                                    <div
+                                                        style="font-size: 14px; font-weight: bold; color: #333; margin-bottom: 5px; text-align: center;">
+                                                        {{ \Illuminate\Support\Str::limit($pdfColor->color_name, 12, '...') }}
+                                                    </div>
+                                                    <div style="font-size: 12px; color: #666; text-align: center;">
+                                                        {{ \Illuminate\Support\Str::limit($pdfColor->color_description, 10, '...') }}
+                                                    </div>
                                                 </div>
-                                                <div style="font-size: 12px; color: #666; text-align: center;">
-                                                    {{ \Illuminate\Support\Str::limit($collection->color_description, 10, '...') }}
-                                                </div>
-                                            </div>
+                                            @endforeach
 
                                             <div style="clear: both;"></div>
                                         </td>
-
-
-
                                     </tr>
                                 </table>
                             </td>
@@ -293,6 +298,11 @@
                             style="font-family: 'AktivGrotesk'; margin: 0px 0 10px 0;
                             font-size: 38.01px; font-weight: 900; line-height: 25px; letter-spacing: -1.52px;text-transform: uppercase;">
                             {{ $collection->product->name }}</h1>
+
+                        @include('exports.collection.partials.size-runs', [
+                            'colors' => $pdfColors,
+                            'show_size_run_me' => $show_size_run_me ?? false,
+                        ])
 
                         <table width="100%">
                             <tr>

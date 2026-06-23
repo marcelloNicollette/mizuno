@@ -219,6 +219,14 @@
                             </svg>
                             <span>Tabela de Medidas</span>
                         </a>
+                        <a href="{{ url('/admin/size-runs') }}"
+                            class="flex items-center px-3 py-2 text-gray-600 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors duration-150 {{ str_contains($currentRoute, 'admin/size-runs') ? 'bg-indigo-50 text-indigo-600' : '' }}">
+                            <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 7h16M4 12h16M4 17h16M8 4v16m8-16v16" />
+                            </svg>
+                            <span>Size Run</span>
+                        </a>
                         <a href="{{ url('/admin/numeracao') }}"
                             class="flex items-center px-3 py-2 text-gray-600 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors duration-150 {{ str_contains($currentRoute, 'admin/numeracao') ? 'bg-indigo-50 text-indigo-600' : '' }}">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
